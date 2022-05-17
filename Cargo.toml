@@ -1,15 +1,7 @@
-[package]
-name = "cs544-client"
-version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-serde = { version = "1.0.136", features = ["derive"] }
-egui = "0.18.1"
-eframe = { version = "0.18.0", features = ["persistence"] }
-
-# targetting native desktop application:
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tracing-subscriber = "0.3"
+[workspace]
+members = [
+    "src/client_bin",
+    "src/server_bin",
+    "src/protocol",
+    "src/tic_tac_toe"
+]

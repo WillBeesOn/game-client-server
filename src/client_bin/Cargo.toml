@@ -1,0 +1,22 @@
+[package]
+name = "game_client_gui"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+game_protocol = { path = "../protocol" }
+tic_tac_toe = { path = "../tic_tac_toe" }
+
+# GUI library
+egui = "0.18.1"
+eframe = { version = "0.18.0", features = ["persistence"] }
+
+# targetting native desktop application:
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tracing-subscriber = "0.3"
+
+[[bin]]
+name="game_client_gui"
+path="main.rs"
