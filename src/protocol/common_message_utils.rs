@@ -1,4 +1,4 @@
-use std::mem::{size_of_val, size_of};
+use std::mem::size_of;
 use std::str;
 use crate::enums::{MessageType, StatusCode};
 
@@ -69,10 +69,13 @@ pub fn parse_message_type(data: &[u8]) -> (MessageType, &[u8]) {
         14 => MessageType::LobbyInfoResponse,
         15 => MessageType::LeaveLobbyRequest,
         16 => MessageType::LeaveLobbyResponse,
-        17 => MessageType::GameStateRequest,
-        18 => MessageType::GameStateResponse,
-        19 => MessageType::ResendMessageRequest,
-        20 => MessageType::UnsolicitedMessage,
+        17 => MessageType::StartGameRequest,
+        18 => MessageType::StartGameResponse,
+        19 => MessageType::MoveRequest,
+        20 => MessageType::GameStateRequest,
+        21 => MessageType::GameStateResponse,
+        22 => MessageType::ResendMessageRequest,
+        23 => MessageType::UnsolicitedMessage,
         _ => MessageType::Unsupported
     };
     (message_type, remainder)
@@ -93,12 +96,14 @@ pub fn parse_status_code(data: &[u8]) -> (StatusCode, &[u8]) {
         9 => StatusCode::UnsupportedGame,
         10 => StatusCode::NoActiveSession,
         11 => StatusCode::LobbyFull,
-        12 => StatusCode::NotInLobby,
-        13 => StatusCode::LobbyNotFound,
-        14 => StatusCode::MaxLobbiesReached,
-        15 => StatusCode::GameStartCriteriaNotMet,
-        16 => StatusCode::NotYourTurn,
-        17 => StatusCode::GameOver,
+        12 => StatusCode::GameStarted,
+        13 => StatusCode::NotInLobby,
+        14 => StatusCode::LobbyNotFound,
+        15 => StatusCode::MaxLobbiesReached,
+        16 => StatusCode::GameStartCriteriaNotMet,
+        17 => StatusCode::NotYourTurn,
+        18 => StatusCode::GameOver,
+        19 => StatusCode::InvalidMove,
         _ => StatusCode::UnexpectedError
     };
     (status_type, remainder)

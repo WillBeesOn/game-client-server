@@ -1,30 +1,30 @@
-use std::io::Write;
-use std::net::TcpStream;
-use std::rc::Rc;
 use std::sync::Arc;
 use serde::{Serialize, Deserialize};
-use uuid::Uuid;
-use crate::game_module::GameMetadata;
+use crate::game_module::{GameMetadata, GameModule, GameState};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Lobby {
     pub id: String,
+    pub owner: String,
     pub player_ids: Vec<String>,
-    pub max_players: u8,
-    pub game_title: String,
-    pub owner: String
+    pub game_started: bool,
+    pub game_metadata: GameMetadata,
 }
 
 impl Lobby {
     pub fn is_full(&self) -> bool {
         let connected_clients = self.player_ids.len();
-        connected_clients >= self.max_players as usize
+        connected_clients >= self.game_metadata.max_players
+    }
+
+    pub fn clone_metadata(&self) -> GameMetadata {
+        self.game_metadata.clone()
     }
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct LobbyInfoResponse {
-    pub lobby: Lobby
+    pub lobby: Lobby,
 }
 
 // To extend ConnectRequest to use authentication data, then create a struct the implements this trait.
@@ -34,6 +34,7 @@ pub trait ConnectRequestAuth {
 
 // Default. ConnectionRequest requires no authentication.
 pub struct NoAuth {}
+
 impl ConnectRequestAuth for NoAuth {
     fn authenticate(&self) -> bool {
         true
@@ -42,7 +43,7 @@ impl ConnectRequestAuth for NoAuth {
 
 // Represents data for connecting to the server_bin
 pub struct ConnectRequest<T> where T: ConnectRequestAuth {
-    auth_data: T
+    auth_data: T,
 }
 
 // Generic impl for ConnectRequest to use authenticate function from any custom auth struct
@@ -60,33 +61,33 @@ impl<T> ConnectRequest<T> where T: ConnectRequestAuth {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ConnectResponse {
-    pub client_id: String
+    pub client_id: String,
 }
 
 // Represents data to join a lobby. Just contains the lobby id.
 #[derive(Serialize, Deserialize)]
 pub struct JoinLobbyRequest {
-    pub lobby_id: String
+    pub lobby_id: String,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct LobbyListResponse {
-    pub lobbies: Vec<Lobby>
+    pub lobbies: Vec<Lobby>,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct SupportedGamesResponse {
-    pub games: Vec<GameMetadata>
+    pub games: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct CreateLobbyRequest {
-    pub game_key: String
+    pub game_type_id: String,
 }
 
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct StartGameRequest {
-    pub lobby_id: String
+    pub lobby_id: String,
 }
 

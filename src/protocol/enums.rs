@@ -18,7 +18,8 @@ pub enum MessageType {
     LobbyInfoResponse,
     LeaveLobbyRequest,
     LeaveLobbyResponse,
-    GameStartRequest,
+    StartGameRequest,
+    StartGameResponse,
     MoveRequest,
     GameStateRequest,
     GameStateResponse,
@@ -41,12 +42,14 @@ pub enum StatusCode {
     UnsupportedGame,
     NoActiveSession,
     LobbyFull,
+    GameStarted,
     NotInLobby,
     LobbyNotFound,
     MaxLobbiesReached,
     GameStartCriteriaNotMet,
     NotYourTurn,
-    GameOver
+    GameOver,
+    InvalidMove
 }
 
 // For general protocol state
