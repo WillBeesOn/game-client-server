@@ -328,7 +328,7 @@ impl GameProtocolClient {
 fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
     // TODO need to block async listen to synchronously listen
     if state.lock().unwrap().socket.is_some() {
-        let mut buffer = [0; 1024]; // 1024 byte buffer
+        let mut buffer = [0; 4096];
         match socket.as_ref().read(&mut buffer) { // TODO should I set timeout?
             Ok(size) => {
                 // If size is more than 0, then this is a legit message we are receiving.
@@ -396,7 +396,6 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                                 state_lock.current_lobby = None;
                             }
                         }
-                        MessageType::StartGameResponse => {} // TODO probably don't need this
                         MessageType::GameStateResponse => {
                             let game_type_id = state_lock.current_lobby.as_ref().unwrap().game_metadata.get_game_type_id();
                             let response = parse_game_state_response(remainder);
@@ -410,8 +409,8 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                                 state_lock.game_in_progress.as_mut().unwrap().set_game_state(response);
                             }
                         }
-                        MessageType::ResendMessageRequest => {}
                         MessageType::UnsolicitedMessage => {}
+                        MessageType::MissingMessageResponse => {}
                         MessageType::ProtocolError => {
                             // TODO handle all kinds of errors. If error is encountered, revert to previous protocol state. Need to keep track of that.
                             //  For example, if we are creating a lobby and receive a protocol error, then it's going to
@@ -426,8 +425,6 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                     if let Some(callback) = &state_lock.on_message_received {
                         callback();
                     }
-                } else {
-                    socket.shutdown(Shutdown::Both).unwrap();
                 }
             }
             Err(e) => {

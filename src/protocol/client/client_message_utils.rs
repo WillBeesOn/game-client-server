@@ -22,7 +22,7 @@ pub fn build_connect_request(next_in_sequence: u32, body: Option<String>) -> Vec
 
 pub fn build_join_lobby_request(next_in_sequence: u32, lobby_id: String) -> Vec<u8> {
     let mut byte_vec = build_client_headers(next_in_sequence, MessageType::JoinLobbyRequest);
-    let join_json = serde_json::to_string(&JoinLobbyRequest { lobby_id: lobby_id.clone() }).unwrap();
+    let join_json = serde_json::to_string(&JoinLobbyRequest { lobby_id }).unwrap();
     byte_vec.extend_from_slice(&build_message_body(Some(join_json)));
     byte_vec
 }

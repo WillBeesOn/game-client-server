@@ -19,11 +19,9 @@ pub enum MessageType {
     LeaveLobbyRequest,
     LeaveLobbyResponse,
     StartGameRequest,
-    StartGameResponse,
     MoveRequest,
-    GameStateRequest,
     GameStateResponse,
-    ResendMessageRequest,
+    MissingMessageResponse,
     UnsolicitedMessage
 }
 
@@ -32,22 +30,21 @@ pub enum MessageType {
 pub enum StatusCode {
     UnexpectedError,
     Success,
-    DataParseError,
-    DataIntegrityError,
+    DataParseError, // TODO use this
+    DataIntegrityError, // TODO use this
     MessageSequenceError,
-    MissingMessage,
-    MalformedBody,
+    MalformedBody, // TODO use this
     UnsupportedRequestType,
     UnsupportedAuthMethod,
     UnsupportedGame,
     NoActiveSession,
     LobbyFull,
+    AlreadyInALobby,
     GameStarted,
     NotInLobby,
-    LobbyNotFound,
-    MaxLobbiesReached,
+    GameSessionNotFound,
+    LobbyNotFound, // TODO use
     GameStartCriteriaNotMet,
-    NotYourTurn,
     GameOver,
     InvalidMove
 }

@@ -64,6 +64,16 @@ pub struct ConnectResponse {
     pub client_id: String,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct MissingMessageResponse {
+    pub missing_message_ids: Vec<u32>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct UnsolicitedMessage {
+    pub message: String,
+}
+
 // Represents data to join a lobby. Just contains the lobby id.
 #[derive(Serialize, Deserialize)]
 pub struct JoinLobbyRequest {

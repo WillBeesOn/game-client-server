@@ -90,6 +90,7 @@ impl eframe::App for GameClient {
 
                 // Allow user to disconnect from server_bin only if we're in the idle state.
                 if ui.button("Disconnect").clicked() {
+                    self.protocol_handler.stop_async_listen();
                     self.protocol_handler.disconnect();
                     self.got_initial_lobbies = false;
                 }
@@ -143,11 +144,6 @@ impl eframe::App for GameClient {
 
                 if ui.button("Leave Lobby").clicked() {
                     self.protocol_handler.leave_lobby();
-                    // TODO also retrieve updated lobby list
-                }
-
-                if ui.button("Refresh lobby").clicked() {
-                    self.protocol_handler.refresh_current_lobby();
                 }
 
                 // Display current lobby info
