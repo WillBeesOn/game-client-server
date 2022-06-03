@@ -12,4 +12,4 @@ path = "lib.rs"
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0"
 typetag = "0.1.8"
-game_protocol = { path = "../protocol"}
+game_protocol = { path = "../game_protocol" }

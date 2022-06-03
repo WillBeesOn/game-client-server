@@ -40,7 +40,7 @@ impl GameProtocolClient {
             previous_protocol_state: ProtocolState::Closed,
             current_lobby: None,
             socket: None,
-            client_id: String::from(""),
+            client_id: "".to_string(),
             lobbies: vec![],
             is_listening_async: false,
             game_in_progress: None,
@@ -60,7 +60,7 @@ impl GameProtocolClient {
         if let (Some(ip), Some(port)) = (&self.ip, &self.port) {
             return format!("{}:{}", ip, port);
         }
-        String::from("")
+        "".to_string()
     }
 
     pub fn get_protocol_state(&self) -> ProtocolState {
@@ -247,7 +247,7 @@ impl GameProtocolClient {
             return;
         }
 
-        // Set the protocol state and save the ip and port
+        // Set the game_protocol state and save the ip and port
         let mut state_lock = self.state.lock().unwrap();
         state_lock.previous_protocol_state = state_lock.protocol_state;
         state_lock.protocol_state = ProtocolState::Authenticating;
@@ -351,7 +351,7 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                                 state_lock.protocol_state = ProtocolState::Closed;
                                 state_lock.socket = None;
                                 state_lock.current_lobby = None;
-                                state_lock.client_id = String::from("");
+                                state_lock.client_id = "".to_string();
                                 state_lock.lobbies = vec![];
                                 state_lock.matching_supported_games = vec![];
                                 state_lock.next_message_num = 0;
@@ -410,8 +410,8 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                         MessageType::UnsolicitedMessage => {}
                         MessageType::MissingMessageResponse => {}
                         MessageType::ProtocolError => {
-                            // TODO handle all kinds of errors. If error is encountered, revert to previous protocol state. Need to keep track of that.
-                            //  For example, if we are creating a lobby and receive a protocol error, then it's going to
+                            // TODO handle all kinds of errors. If error is encountered, revert to previous game_protocol state. Need to keep track of that.
+                            //  For example, if we are creating a lobby and receive a game_protocol error, then it's going to
                             //  be an error about creating the lobby. So handle it appropriately.
                             state_lock.protocol_state = state_lock.previous_protocol_state;
                         }

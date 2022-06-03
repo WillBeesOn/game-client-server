@@ -49,7 +49,7 @@ pub enum StatusCode {
     InvalidMove
 }
 
-// For general protocol state
+// For general game_protocol state
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ProtocolState {
     Closed,

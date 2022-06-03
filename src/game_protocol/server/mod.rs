@@ -106,7 +106,7 @@ impl GameProtocolServer {
         let client_socket = Arc::new(stream);
         thread::spawn(move|| {
             // Initialize client_bin ID as an empty string, indicating that it does not have an active session yet.
-            let mut client_id = String::from("");
+            let mut client_id = "".to_string();
             loop {
                 let mut buffer = [0; 4096];
 
@@ -385,7 +385,7 @@ impl GameProtocolServer {
                                                     state_ref.clients.get(id).unwrap().socket.send_message(game_state.clone());
                                                 }
                                             } else if game_ended {
-                                                // If client tries to make a move but game is over, send a GameOver protocol error.
+                                                // If client tries to make a move but game is over, send a GameOver game_protocol error.
                                                 client.socket.send_message(build_server_headers(StatusCode::GameOver, MessageType::ProtocolError));
                                             } else if is_move_valid {
                                                 // If client's move is invalid, then return an error.

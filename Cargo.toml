@@ -2,6 +2,6 @@
 members = [
     "src/client_bin",
     "src/server_bin",
-    "src/protocol",
+    "src/game_protocol",
     "src/tic_tac_toe"
 ]

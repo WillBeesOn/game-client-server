@@ -24,7 +24,7 @@ pub fn parse_message_payload(data: &[u8]) -> (u32, String) {
             // TODO throw check sum error
         }
 
-        if size > data_bytes.len() {
+        if size as usize > data_bytes.len() {
             // TODO throw data size error
         }
 
