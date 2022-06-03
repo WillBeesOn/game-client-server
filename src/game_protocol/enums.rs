@@ -29,7 +29,7 @@ pub enum MessageType {
     UnsolicitedMessage
 }
 
-// For server_bin message status
+// For server message status
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum StatusCode {
     UnexpectedError,

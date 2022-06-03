@@ -39,7 +39,7 @@ impl ConnectRequestAuth for NoAuth {
     }
 }
 
-// Represents data for connecting to the server_bin
+// Represents data for connecting to the server
 pub struct ConnectRequest<T> where T: ConnectRequestAuth {
     auth_data: T,
 }

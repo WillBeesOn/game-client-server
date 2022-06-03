@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "src/client_bin",
-    "src/server_bin",
+    "src/client",
+    "src/server",
     "src/game_protocol",
     "src/tic_tac_toe"
 ]

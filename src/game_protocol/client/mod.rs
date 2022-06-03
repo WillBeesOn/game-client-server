@@ -465,7 +465,7 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                     let mut state_lock = state.lock().unwrap();
                     match message_type {
                         MessageType::ConnectResponse => {
-                            // Only accept the ConnectResponse if it was successful and this client_bin was in the correct state: Authenticating.
+                            // Only accept the ConnectResponse if it was successful and this client was in the correct state: Authenticating.
                             if matches!(status_code, StatusCode::Success) {
                                 match parse_message_data::<ConnectResponse>(remainder) {
                                     Ok(res) => {
@@ -509,8 +509,8 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                             if matches!(status_code, StatusCode::Success) {
                                 match parse_message_data::<SupportedGamesResponse>(remainder) {
                                     Ok(res) => {
-                                        // Compare list of server_bin supported games with client_bin supported games.
-                                        // Collect the matching games and store them since these are the ones the client_bin should only be able to create lobbies for and join.
+                                        // Compare list of server supported games with client supported games.
+                                        // Collect the matching games and store them since these are the ones the client should only be able to create lobbies for and join.
                                         let mut matching_games = vec![];
                                         let supported_games = &state_lock.supported_games;
                                         for server_game_id in res.games.iter() {
@@ -617,7 +617,7 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                             state_lock.protocol_state = state_lock.previous_protocol_state;
                         }
                         MessageType::Unsupported => {}
-                        _ => {} // Default and Unsupported. Do nothing if we get a message unsupported on the client_bin side.
+                        _ => {} // Default and Unsupported. Do nothing if we get a message unsupported on the client side.
                     };
 
                     // Run on message received callback if it was set

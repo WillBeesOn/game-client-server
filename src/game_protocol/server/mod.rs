@@ -88,7 +88,7 @@ impl GameProtocolServer {
         match TcpListener::bind(format!("{}:{}", self.ip, self.port)) {
             Ok(listener) => {
                 self.listener = Some(listener);
-                println!("Server listening on port {}", self.port);
+                println!("Server listening at {}:{}", self.ip, self.port);
                 self.start_server_loop();
             },
             Err(e) => {
@@ -145,7 +145,7 @@ impl GameProtocolServer {
                             // then server will only accept ConnectRequests and send client an error otherwise.
                             let is_id_empty = client_id.is_empty();
                             if is_id_empty && matches!(message_type, MessageType::ConnectRequest) {
-                                // If authentication is successful, add client to the server_bin.
+                                // If authentication is successful, add client to the server.
                                 let connect_message = parse_connect_request(remainder);
                                 if connect_message.authenticate() {
                                     // Create a new UUID for this client. Check for collisions.
@@ -172,7 +172,7 @@ impl GameProtocolServer {
                                     continue;
                                 }
                             } else if is_id_empty {
-                                // Send client an error if it does not have an ID, indicating that it has not been added to the server_bin as an active client.
+                                // Send client an error if it does not have an ID, indicating that it has not been added to the server as an active client.
                                 client_socket.send_message(build_server_headers(StatusCode::NoActiveSession, MessageType::ConnectResponse));
                                 continue;
                             }
@@ -352,7 +352,7 @@ impl GameProtocolServer {
                                             }
                                         }
 
-                                        // Send the client a LeaveLobbyResponse, confirming that the server_bin has removed the client from the lobby
+                                        // Send the client a LeaveLobbyResponse, confirming that the server has removed the client from the lobby
                                         client_socket.send_message(build_server_headers(StatusCode::Success, MessageType::LeaveLobbyResponse));
                                     } else {
                                         client_socket.send_message(build_server_headers(StatusCode::NotInLobby, MessageType::LeaveLobbyResponse));
@@ -505,7 +505,7 @@ impl GameProtocolServer {
             }
             // When the listening loop exits, do clean up.
             // Remove client from any lobby it's in.
-            // Remove client from client list on server_bin.
+            // Remove client from client list on server.
             if !client_id.is_empty() {
                 let mut state_lock = state_clone.lock().unwrap();
                 let state_ref = state_lock.deref_mut();
@@ -537,7 +537,7 @@ impl GameProtocolServer {
                         }
                     }
 
-                    // If the lobby is empty, remove it from the server_bin
+                    // If the lobby is empty, remove it from the server
                     if found_lobby.player_ids.len() == 0 {
                         lobbies.remove(&lobby_id);
                     }

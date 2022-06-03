@@ -86,7 +86,7 @@ impl eframe::App for GameClient {
                 }
             }
 
-            // While there is a connection established, show where the client_bin is connected to.
+            // While there is a connection established, show where the client is connected to.
             if !matches!(connection_status, ProtocolState::Closed) &&
                 !matches!(connection_status, ProtocolState::Authenticating) {
                 ui.horizontal(|ui| {
@@ -97,7 +97,7 @@ impl eframe::App for GameClient {
             // What to do in the GUI while client is not in a lobby or game session.
             // The client can only request a list of lobbies or attempt to create/join a lobby.
             if matches!(connection_status, ProtocolState::Idle) {
-                // Make initial request for list of lobbies when client_bin first enters this state.
+                // Make initial request for list of lobbies when client first enters this state.
                 // Afterwards it must be requested manually.
                 if !self.got_initial_lobbies {
                     self.protocol_handler.request_supported_games();
@@ -105,7 +105,7 @@ impl eframe::App for GameClient {
                     self.got_initial_lobbies = true;
                 }
 
-                // Allow user to disconnect from server_bin only if we're in the idle state.
+                // Allow user to disconnect from server only if we're in the idle state.
                 if ui.button("Disconnect").clicked() {
                     self.protocol_handler.stop_async_listen();
                     self.is_listening_async = false;
@@ -119,7 +119,7 @@ impl eframe::App for GameClient {
                         self.protocol_handler.request_lobby_list();
                     }
 
-                    // Show buttons for creating lobbies of supported games. Or note there are no supported games (games the client_bin and server_bin both support).
+                    // Show buttons for creating lobbies of supported games. Or note there are no supported games (games the client and server both support).
                     ui.horizontal(|ui| {
                         let supported_games = self.protocol_handler.get_supported_games();
                         if supported_games.len() > 0 {
