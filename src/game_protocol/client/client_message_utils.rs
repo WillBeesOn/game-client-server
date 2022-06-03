@@ -1,9 +1,17 @@
+use serde::Deserialize;
 use crate::common_message_utils::{build_message_body, parse_message_payload, parse_message_type, parse_status_code};
 use crate::enums::{MessageType, StatusCode};
 use crate::game_module::{GameMove, GameState};
-use crate::shared_data::{ConnectResponse, CreateLobbyRequest, JoinLobbyRequest, LobbyInfoResponse, LobbyListResponse, StartGameRequest, SupportedGamesResponse};
+use crate::shared_data::{ConnectResponse, CreateLobbyRequest, JoinLobbyRequest, LobbyInfoResponse, LobbyListResponse, MissingMessageResponse, StartGameRequest, SupportedGamesResponse, UnsolicitedMessage};
 
-// Build the basic client_bin message fields into a byte vector to send.
+/*
+    Contains helpers for building client requests and parsing server responses.
+    A lot of these could probably be made to use generics, but currently don't have enough time
+    to sort out a refactor. This all still works as intended.
+    Functions should be self explanatory: build and parse message types.
+ */
+
+// Build the basic client message fields into a byte vector to send.
 // Handles message sequence and message type.
 pub fn build_client_headers(next_in_sequence: u32, message_type: MessageType) -> Vec<u8> {
     let mut byte_vec = vec![];
@@ -12,7 +20,6 @@ pub fn build_client_headers(next_in_sequence: u32, message_type: MessageType) ->
     byte_vec
 }
 
-// Consists of message sequence, message type, data size (in bytes), check sum, and body.
 pub fn build_connect_request(next_in_sequence: u32, body: Option<String>) -> Vec<u8> {
     let mut byte_vec = build_client_headers(next_in_sequence, MessageType::ConnectRequest);
     byte_vec.extend_from_slice(&build_message_body(body));
@@ -47,7 +54,7 @@ pub fn build_move_request(next_in_sequence: u32, game_move: &dyn GameMove) -> Ve
     byte_vec
 }
 
-// Parse client_bin message into its respective data
+// Parse server message headers, returning them and the remaining bytes of data
 pub fn parse_server_message_header(raw_message: &[u8]) -> (StatusCode, MessageType, &[u8]) {
     // Message sequence ID.
     let (status_code, remainder) = parse_status_code(raw_message);
@@ -58,31 +65,43 @@ pub fn parse_server_message_header(raw_message: &[u8]) -> (StatusCode, MessageTy
 }
 
 pub fn parse_connect_response(raw_message: &[u8]) -> ConnectResponse {
-    let (size, data_string) = parse_message_payload(raw_message);
+    let data_string = parse_message_payload(raw_message);
     let data: ConnectResponse = serde_json::from_slice(data_string.as_bytes()).unwrap();
     data
 }
 
 pub fn parse_lobby_list_response(raw_message: &[u8]) -> LobbyListResponse {
-    let (size, data_string) = parse_message_payload(raw_message);
+    let data_string = parse_message_payload(raw_message);
     let data: LobbyListResponse = serde_json::from_slice(data_string.as_bytes()).unwrap();
     data
 }
 
 pub fn parse_lobby_info_response(raw_message: &[u8]) -> LobbyInfoResponse {
-    let (size, data_string) = parse_message_payload(raw_message);
+    let data_string = parse_message_payload(raw_message);
     let data: LobbyInfoResponse = serde_json::from_slice(data_string.as_bytes()).unwrap();
     data
 }
 
 pub fn parse_supported_games_response(raw_message: &[u8]) -> SupportedGamesResponse {
-    let (size, data_string) = parse_message_payload(raw_message);
+    let data_string = parse_message_payload(raw_message);
     let data: SupportedGamesResponse = serde_json::from_slice(data_string.as_bytes()).unwrap();
     data
 }
 
 pub fn parse_game_state_response(raw_message: &[u8]) -> Box<dyn GameState> {
-    let (size, data_string) = parse_message_payload(raw_message);
+    let data_string = parse_message_payload(raw_message);
     let data: Box<dyn GameState> = serde_json::from_slice(data_string.as_bytes()).unwrap();
+    data
+}
+
+pub fn parse_missing_message_response(raw_message: &[u8]) -> MissingMessageResponse {
+    let data_string = parse_message_payload(raw_message);
+    let data: MissingMessageResponse = serde_json::from_slice(data_string.as_bytes()).unwrap();
+    data
+}
+
+pub fn parse_unsolicited_message(raw_message: &[u8]) -> UnsolicitedMessage {
+    let data_string = parse_message_payload(raw_message);
+    let data: UnsolicitedMessage = serde_json::from_slice(data_string.as_bytes()).unwrap();
     data
 }

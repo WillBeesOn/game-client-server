@@ -96,8 +96,10 @@ impl eframe::App for GameClient {
 
                 // Allow user to disconnect from server_bin only if we're in the idle state.
                 if ui.button("Disconnect").clicked() {
-                    self.protocol_handler.disconnect();
+                    self.protocol_handler.stop_async_listen();
+                    self.is_listening_async = false;
                     self.got_initial_lobbies = false;
+                    self.protocol_handler.disconnect();
                 }
 
                 // Buttons for refreshing lobby list and creating a lobby
@@ -150,8 +152,6 @@ impl eframe::App for GameClient {
 
                 // Stop async listen when leaving the lobby
                 if ui.button("Leave Lobby").clicked() {
-                    self.protocol_handler.stop_async_listen();
-                    self.is_listening_async = false;
                     self.protocol_handler.leave_lobby();
                 }
 
@@ -160,7 +160,7 @@ impl eframe::App for GameClient {
                     if self.protocol_handler.get_client_id() == lobby.owner {
                         let enable = lobby.player_ids.len() >= lobby.game_metadata.min_required_players;
                         if ui.add_enabled(enable, Button::new("Start game")).clicked() {
-                            self.protocol_handler.start_game(&lobby.id);
+                            self.protocol_handler.start_game();
                         }
                     }
                     ui.label(format!("Players: {}/{}", lobby.player_ids.len(), lobby.game_metadata.max_players));

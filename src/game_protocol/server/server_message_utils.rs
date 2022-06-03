@@ -82,31 +82,31 @@ pub fn parse_client_message_header(raw_message: &[u8]) -> (u32, MessageType, &[u
 
 // Parse a ConnectRequest from incoming data.
 pub fn parse_connect_request(data: &[u8]) -> ConnectRequest<NoAuth> {
-    let (size, body) = parse_message_payload(data);
+    let body = parse_message_payload(data);
     ConnectRequest::new(NoAuth {})
 }
 
 
 pub fn parse_join_lobby_request(data: &[u8]) -> JoinLobbyRequest {
-    let (size, body) = parse_message_payload(data);
+    let body = parse_message_payload(data);
     let join_request: JoinLobbyRequest = serde_json::from_slice(&body.as_bytes()).unwrap();
     join_request
 }
 
 pub fn parse_create_lobby_request(data: &[u8]) -> CreateLobbyRequest {
-    let (size, body) = parse_message_payload(data);
+    let body = parse_message_payload(data);
     let create_lobby_request: CreateLobbyRequest = serde_json::from_slice(&body.as_bytes()).unwrap();
     create_lobby_request
 }
 
 pub fn parse_start_game_request(data: &[u8]) -> StartGameRequest {
-    let (size, body) = parse_message_payload(data);
+    let body = parse_message_payload(data);
     let create_lobby_request: StartGameRequest = serde_json::from_slice(&body.as_bytes()).unwrap();
     create_lobby_request
 }
 
 pub fn parse_move_request(data: &[u8]) -> Box<dyn GameMove> {
-    let (size, body) = parse_message_payload(data);
+    let body = parse_message_payload(data);
     let move_request: Box<dyn GameMove> = serde_json::from_slice(&body.as_bytes()).unwrap();
     move_request
 }

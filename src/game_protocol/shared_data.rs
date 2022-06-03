@@ -2,6 +2,12 @@ use std::sync::Arc;
 use serde::{Serialize, Deserialize};
 use crate::game_module::{GameMetadata, GameModule, GameState};
 
+/*
+    Contains data structures that are shared between client and server
+ */
+
+
+// Lobby object to store in server and display on client side
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Lobby {
     pub id: String,
@@ -11,20 +17,13 @@ pub struct Lobby {
     pub game_metadata: GameMetadata,
 }
 
+// Functions for Lobby objects
 impl Lobby {
+    // Determine if lobby is full
     pub fn is_full(&self) -> bool {
         let connected_clients = self.player_ids.len();
         connected_clients >= self.game_metadata.max_players
     }
-
-    pub fn clone_metadata(&self) -> GameMetadata {
-        self.game_metadata.clone()
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct LobbyInfoResponse {
-    pub lobby: Lobby,
 }
 
 // To extend ConnectRequest to use authentication data, then create a struct the implements this trait.
@@ -59,6 +58,30 @@ impl<T> ConnectRequest<T> where T: ConnectRequestAuth {
     }
 }
 
+
+// A series of simple structs as wrappers around message specific data. Not much to explain.
+
+
+#[derive(Serialize, Deserialize)]
+pub struct JoinLobbyRequest {
+    pub lobby_id: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct CreateLobbyRequest {
+    pub game_type_id: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct StartGameRequest {
+    pub lobby_id: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct LobbyInfoResponse {
+    pub lobby: Lobby,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ConnectResponse {
     pub client_id: String,
@@ -74,12 +97,6 @@ pub struct UnsolicitedMessage {
     pub message: String,
 }
 
-// Represents data to join a lobby. Just contains the lobby id.
-#[derive(Serialize, Deserialize)]
-pub struct JoinLobbyRequest {
-    pub lobby_id: String,
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct LobbyListResponse {
     pub lobbies: Vec<Lobby>,
@@ -90,14 +107,4 @@ pub struct SupportedGamesResponse {
     pub games: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct CreateLobbyRequest {
-    pub game_type_id: String,
-}
-
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct StartGameRequest {
-    pub lobby_id: String,
-}
 

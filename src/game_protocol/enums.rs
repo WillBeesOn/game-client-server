@@ -1,3 +1,7 @@
+/*
+    Creates enums for messages, status, and protocol state
+ */
+
 // For types of messages
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum MessageType {

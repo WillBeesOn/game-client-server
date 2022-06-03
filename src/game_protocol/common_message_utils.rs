@@ -2,8 +2,13 @@ use std::mem::size_of;
 use std::str;
 use crate::enums::{MessageType, StatusCode};
 
+/*
+    Contains message parsing functions common between client and server.
+ */
+
+
 // Parse size and body of message into u32 and JSON string.
-pub fn parse_message_payload(data: &[u8]) -> (u32, String) {
+pub fn parse_message_payload(data: &[u8]) -> String {
     // Data size
     let (size_bytes, remainder) = data.split_at(size_of::<u32>());
     let size = u32::from_be_bytes(size_bytes.try_into().unwrap());
@@ -21,17 +26,17 @@ pub fn parse_message_payload(data: &[u8]) -> (u32, String) {
 
         // If the checksums don't match, throw error. Otherwise parse the data into a string
         if remote_checksum != local_checksum {
-            // TODO throw check sum error
+            // TODO throw check sum error use Result return value so I can throw an error here
         }
 
+        // Throw error if size described in message is not equal to the number of bytes of the body
         if size as usize > data_bytes.len() {
             // TODO throw data size error
         }
 
         body = str::from_utf8(data_bytes).unwrap();
     }
-
-    (size, body.to_string())
+    body.to_string()
 }
 
 // Build the body into a byte vector to send.
@@ -45,7 +50,7 @@ pub fn build_message_body(body: Option<String>) -> Vec<u8> {
             return byte_vec;
         }
         byte_vec.extend_from_slice(&(data_bytes.len() as u32).to_be_bytes());
-        byte_vec.extend_from_slice(&crc32fast::hash(&data_bytes).to_be_bytes());
+        byte_vec.extend_from_slice(&crc32fast::hash(&data_bytes).to_be_bytes()); // Create checksum
         byte_vec.extend_from_slice(&data_bytes);
     } else {
         byte_vec.extend_from_slice(&0_u32.to_be_bytes());
@@ -53,6 +58,7 @@ pub fn build_message_body(body: Option<String>) -> Vec<u8> {
     byte_vec
 }
 
+// Maps integers to the message type enumeration
 pub fn parse_message_type(data: &[u8]) -> (MessageType, &[u8]) {
     let (type_bytes, remainder) = data.split_at(size_of::<u16>());
     let message_type = match u16::from_be_bytes(type_bytes.try_into().unwrap()) {
@@ -82,6 +88,7 @@ pub fn parse_message_type(data: &[u8]) -> (MessageType, &[u8]) {
     (message_type, remainder)
 }
 
+// Map integers to status code enumeration
 pub fn parse_status_code(data: &[u8]) -> (StatusCode, &[u8]) {
     let (status_bytes, remainder) = data.split_at(size_of::<u16>());
     let status_type = match u16::from_be_bytes(status_bytes.try_into().unwrap()) {
