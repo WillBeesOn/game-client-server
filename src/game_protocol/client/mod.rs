@@ -1,15 +1,13 @@
 use std::io::{Read, Write};
-use std::net::{Shutdown, TcpStream};
+use std::net::{TcpStream};
 use std::collections::HashMap;
-use std::os::macos::raw::stat;
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use crate::client::client_message_utils::{build_client_headers, build_connect_request, build_create_lobby_request, build_join_lobby_request, build_move_request, build_start_game_request, parse_connect_response, parse_game_state_response, parse_lobby_info_response, parse_lobby_list_response, parse_missing_message_response, parse_server_message_header, parse_supported_games_response, parse_unsolicited_message};
+use crate::client::client_message_utils::{build_client_headers, build_connect_request, build_create_lobby_request, build_join_lobby_request, build_move_request, build_start_game_request, parse_server_message_header};
+use crate::common_message_utils::parse_message_data;
 use crate::enums::{MessageType, ProtocolState, StatusCode};
 use crate::game_module::{GameModule, GameMove, GameState};
-use crate::server::SocketSend;
-use crate::shared_data::Lobby;
+use crate::shared_data::{ConnectResponse, Lobby, LobbyInfoResponse, LobbyListResponse, MissingMessageResponse, SupportedGamesResponse, UnsolicitedMessage};
 
 mod client_message_utils;
 
@@ -277,7 +275,7 @@ impl GameProtocolClient {
     pub fn make_move(&mut self, game_move: &dyn GameMove) {
         // Lock state object to get required message data and change protocol state.
         let state_clone = self.state.clone();
-        let mut state_lock = state_clone.lock().unwrap();
+        let state_lock = state_clone.lock().unwrap();
         let socket = state_lock.socket.as_ref().unwrap().clone();
         let next_message_num = state_lock.next_message_num;
         drop(state_lock);
@@ -293,7 +291,7 @@ impl GameProtocolClient {
     pub fn return_to_lobby(&mut self) {
         // Lock state object to get required message data and change protocol state.
         let state_clone = self.state.clone();
-        let mut state_lock = state_clone.lock().unwrap();
+        let state_lock = state_clone.lock().unwrap();
         let socket = state_lock.socket.as_ref().unwrap().clone();
         let next_message_num = state_lock.next_message_num;
         drop(state_lock);
@@ -421,9 +419,16 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                         MessageType::ConnectResponse => {
                             // Only accept the ConnectResponse if it was successful and this client_bin was in the correct state: Authenticating.
                             if matches!(status_code, StatusCode::Success) {
-                                let response = parse_connect_response(remainder);
-                                state_lock.client_id = response.client_id;
-                                state_lock.protocol_state = ProtocolState::Idle;
+                                match parse_message_data::<ConnectResponse>(remainder) {
+                                    Ok(res) => {
+                                        state_lock.client_id = res.client_id;
+                                        state_lock.protocol_state = ProtocolState::Idle;
+                                    },
+                                    Err(e) => {
+                                        // TODO handle error?
+                                    }
+                                }
+
                             }
                         }
                         MessageType::DisconnectResponse => {
@@ -441,37 +446,48 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                         MessageType::LobbyListResponse => {
                             // Simply set list of lobbies retrieved from server to the state so it's accessible from the client.
                             if matches!(status_code, StatusCode::Success) {
-                                let data = parse_lobby_list_response(remainder);
-                                state_lock.protocol_state = ProtocolState::Idle;
-                                state_lock.lobbies = data.lobbies;
+                                match parse_message_data::<LobbyListResponse>(remainder) {
+                                    Ok(res) => {
+                                        state_lock.protocol_state = ProtocolState::Idle;
+                                        state_lock.lobbies = res.lobbies;
+                                    }
+                                    Err(e) => {}
+                                }
                             }
                         }
                         MessageType::SupportedGamesResponse => {
                             if matches!(status_code, StatusCode::Success) {
-                                let data = parse_supported_games_response(remainder);
-
-                                // Compare list of server_bin supported games with client_bin supported games.
-                                // Collect the matching games and store them since these are the ones the client_bin should only be able to create lobbies for and join.
-                                let mut matching_games = vec![];
-                                let supported_games = &state_lock.supported_games;
-                                for server_game_id in data.games.iter() {
-                                    if supported_games.contains_key(server_game_id) {
-                                        matching_games.push((
-                                                supported_games.get(server_game_id).unwrap().get_metadata().game_title.clone(),
-                                                server_game_id.clone()
-                                        ));
+                                match parse_message_data::<SupportedGamesResponse>(remainder) {
+                                    Ok(res) => {
+                                        // Compare list of server_bin supported games with client_bin supported games.
+                                        // Collect the matching games and store them since these are the ones the client_bin should only be able to create lobbies for and join.
+                                        let mut matching_games = vec![];
+                                        let supported_games = &state_lock.supported_games;
+                                        for server_game_id in res.games.iter() {
+                                            if supported_games.contains_key(server_game_id) {
+                                                matching_games.push((
+                                                    supported_games.get(server_game_id).unwrap().get_metadata().game_title.clone(),
+                                                    server_game_id.clone()
+                                                ));
+                                            }
+                                        }
+                                        state_lock.protocol_state = ProtocolState::Idle;
+                                        state_lock.matching_supported_games = matching_games;
                                     }
+                                    Err(e) => {}
                                 }
-                                state_lock.protocol_state = ProtocolState::Idle;
-                                state_lock.matching_supported_games = matching_games;
                             }
                         }
                         MessageType::LobbyInfoResponse => {
                             // Simple, set current lobby upon receiving lobby info
                             if matches!(status_code, StatusCode::Success) {
-                                let data = parse_lobby_info_response(remainder);
-                                state_lock.protocol_state = ProtocolState::InLobby;
-                                state_lock.current_lobby = Some(data.lobby);
+                                match parse_message_data::<LobbyInfoResponse>(remainder) {
+                                    Ok(res) => {
+                                        state_lock.protocol_state = ProtocolState::InLobby;
+                                        state_lock.current_lobby = Some(res.lobby);
+                                    }
+                                    Err(e) => {}
+                                }
                             }
                         }
                         MessageType::LeaveLobbyResponse => {
@@ -483,42 +499,52 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                         }
                         MessageType::GameStateResponse => {
                             // Handle receiving game state response. This will move the client into a game session or update it's existing game state.
-                            let game_type_id = state_lock.current_lobby.as_ref().unwrap().game_metadata.get_game_type_id();
-                            let response = parse_game_state_response(remainder);
-
-                            if matches!(state_lock.protocol_state, ProtocolState::CreatingGameSession) || matches!(state_lock.protocol_state, ProtocolState::InLobby) {
-                                let mut new_game = state_lock.supported_games.get(&game_type_id).unwrap().init_new();
-                                new_game.set_game_state(response);
-                                state_lock.game_in_progress = Some(new_game);
-                                state_lock.protocol_state = ProtocolState::GameRunning;
-                            } else if state_lock.game_in_progress.is_some() {
-                                // Update the game state for the game that is ongoing.
-                                state_lock.game_in_progress.as_mut().unwrap().set_game_state(response);
+                            match parse_message_data::<Box<dyn GameState>>(remainder) {
+                                Ok(res) => {
+                                    if matches!(state_lock.protocol_state, ProtocolState::CreatingGameSession) || matches!(state_lock.protocol_state, ProtocolState::InLobby) {
+                                        let game_type_id = state_lock.current_lobby.as_ref().unwrap().game_metadata.get_game_type_id();
+                                        let mut new_game = state_lock.supported_games.get(&game_type_id).unwrap().init_new();
+                                        new_game.set_game_state(res);
+                                        state_lock.game_in_progress = Some(new_game);
+                                        state_lock.protocol_state = ProtocolState::GameRunning;
+                                    } else if state_lock.game_in_progress.is_some() {
+                                        // Update the game state for the game that is ongoing.
+                                        state_lock.game_in_progress.as_mut().unwrap().set_game_state(res);
+                                    }
+                                }
+                                Err(e) => {}
                             }
                         }
                         MessageType::UnsolicitedMessage => {
                             // Set client state's message to the message received from the server
-                            let response = parse_unsolicited_message(remainder);
-                            state_lock.unsolicited_message = response.message;
+                            match parse_message_data::<UnsolicitedMessage>(remainder) {
+                                Ok(res) => {
+                                    state_lock.unsolicited_message = res.message;
+                                }
+                                Err(e) => {}
+                            }
                         }
                         MessageType::MissingMessageResponse => {
                             // Check which messages are missing and resend them to the server
-                            let response = parse_missing_message_response(remainder);
+                            match parse_message_data::<MissingMessageResponse>(remainder) {
+                                Ok(res) => {
+                                    // Copy the message cache so we don't need to use the state mutex to directly access the state
+                                    let previous_message_cache = state_lock.previous_message_cache.clone();
 
-                            // Copy the message cache so we don't need to use the state mutex to directly access the state
-                            let previous_message_cache = state_lock.previous_message_cache.clone();
-
-                            // Go through all missing IDs
-                            for id in response.missing_message_ids.iter() {
-                                // If the ID is in the message cache, attempt to resend it
-                                if let Some(message) = previous_message_cache.get(id) {
-                                    socket.as_ref().write(message.as_slice()); // Send the message
-                                } else {
-                                    // If the ID is not found, then sending other cached messages
-                                    // will cause the server to keep sending MissingMessageResponses since the expected
-                                    // message would not have been sent, and will never be sent.
-                                    break;
+                                    // Go through all missing IDs
+                                    for id in res.missing_message_ids.iter() {
+                                        // If the ID is in the message cache, attempt to resend it
+                                        if let Some(message) = previous_message_cache.get(id) {
+                                            socket.as_ref().write(message.as_slice()); // Send the message
+                                        } else {
+                                            // If the ID is not found, then sending other cached messages
+                                            // will cause the server to keep sending MissingMessageResponses since the expected
+                                            // message would not have been sent, and will never be sent.
+                                            break;
+                                        }
+                                    }
                                 }
+                                Err(e) => {}
                             }
                         }
                         MessageType::ProtocolError => {

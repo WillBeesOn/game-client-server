@@ -1,7 +1,4 @@
 use std::any::Any;
-use std::io::empty;
-use std::sync::Arc;
-use serde_json;
 use serde::{Serialize, Deserialize};
 use game_protocol::game_module::{GameState, GameMove, GameModule, GameMetadata};
 
@@ -137,6 +134,8 @@ impl GameModule for TicTacToe {
         } else if self.state.o_player_id.eq("") {
             self.state.o_player_id = id;
         }
+
+        println!("ADd len: {}", self.players.len());
     }
 
     // Removes a player from the game.
@@ -152,6 +151,7 @@ impl GameModule for TicTacToe {
                 } else if self.state.o_player_id.eq(&id) {
                     self.state.o_player_id = "".to_string();
                 }
+                break;
             }
         }
     }

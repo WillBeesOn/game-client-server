@@ -2,19 +2,23 @@ use std::net::{Shutdown, TcpListener, TcpStream};
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use std::hash::Hash;
 use std::io::{Read, Write};
-use std::mem::{size_of, size_of_val};
-use std::rc::Rc;
 use std::thread;
 use uuid::Uuid;
+use crate::common_message_utils::parse_message_data;
 use crate::enums::{MessageType, StatusCode};
-use crate::enums::MessageType::ProtocolError;
-use crate::game_module::{GameModule};
-use crate::server::server_message_utils::{build_connect_response, build_game_state_response, build_lobby_info_response, build_lobby_list_response, build_missing_message_response, build_server_headers, build_supported_game_response, parse_client_message_header, parse_connect_request, parse_create_lobby_request, parse_join_lobby_request, parse_move_request, parse_start_game_request};
-use crate::shared_data::Lobby;
+use crate::game_module::{GameModule, GameMove};
+use crate::server::server_message_utils::{build_connect_response, build_game_state_response, build_lobby_info_response, build_lobby_list_response, build_missing_message_response, build_server_headers, build_supported_game_response, parse_client_message_header, parse_connect_request};
+use crate::shared_data::{CreateLobbyRequest, JoinLobbyRequest, Lobby, NoAuth, StartGameRequest};
 
 mod server_message_utils;
+
+/*
+    Server component of the game protocol.
+    Handles accepting and storing clients, creating and storing lobbies an game sessions.
+    Handle client messages, process data on the server appropriate to the request, and send a response
+    appropriate to the request or the result of the processing.
+ */
 
 // Give TcpStream its own send_message function as a wrapper around the socket's write function.
 pub trait SocketSend {
@@ -122,7 +126,7 @@ impl GameProtocolServer {
 
                             // Set up variables pretty much each handler will need
                             let mut state_lock = state_clone.lock().unwrap();
-                            let mut state_ref = state_lock.deref_mut();
+                            let state_ref = state_lock.deref_mut();
 
                             // If client is not authenticated by the server and stored as a connected client,
                             // then server will only accept ConnectRequests and send client an error otherwise.
@@ -205,40 +209,43 @@ impl GameProtocolServer {
                                     client_socket.send_message(response);
                                 }
                                 MessageType::CreateLobbyRequest => {
-                                    let create_lobby_request = parse_create_lobby_request(remainder);
+                                    match parse_message_data::<CreateLobbyRequest>(remainder) {
+                                        Ok(res) => {
+                                            // Check if server supports the game. Otherwise send an error.
+                                            if state_ref.supported_games.contains_key(&res.game_type_id) {
+                                                let client = state_ref.clients.get_mut(&client_id).unwrap();
 
-                                    // Check if server supports the game. Otherwise send an error.
-                                    if state_ref.supported_games.contains_key(&create_lobby_request.game_type_id) {
-                                        let client = state_ref.clients.get_mut(&client_id).unwrap();
+                                                if client.lobby_id.is_none() {
+                                                    // Create a new UUID for this lobby. Check for collisions.
+                                                    let mut new_lobby_id = Uuid::new_v4().to_string();
+                                                    let mut unique = false;
+                                                    while !unique {
+                                                        if state_ref.lobbies.contains_key(&new_lobby_id) {
+                                                            new_lobby_id = Uuid::new_v4().to_string();
+                                                        } else {
+                                                            unique = true;
+                                                        }
+                                                    }
 
-                                        if client.lobby_id.is_none() {
-                                            // Create a new UUID for this lobby. Check for collisions.
-                                            let mut new_lobby_id = Uuid::new_v4().to_string();
-                                            let mut unique = false;
-                                            while !unique {
-                                                if state_ref.lobbies.contains_key(&new_lobby_id) {
-                                                    new_lobby_id = Uuid::new_v4().to_string();
+                                                    // Create new lobby
+                                                    let new_lobby = Lobby {
+                                                        owner: client.id.clone(),
+                                                        id: new_lobby_id.clone(),
+                                                        player_ids: vec![client.id.clone()],
+                                                        game_started: false,
+                                                        game_metadata: state_ref.supported_games.get(&res.game_type_id).unwrap().get_metadata().clone()
+                                                    };
+                                                    client.lobby_id = Some(new_lobby_id.clone());
+                                                    state_ref.lobbies.insert(new_lobby_id, new_lobby.clone());
+                                                    client_socket.send_message(build_lobby_info_response(StatusCode::Success, new_lobby.clone()));
                                                 } else {
-                                                    unique = true;
+                                                    client_socket.send_message(build_server_headers(StatusCode::AlreadyInALobby, MessageType::ProtocolError));
                                                 }
+                                            } else {
+                                                client_socket.send_message(build_server_headers(StatusCode::UnsupportedGame, MessageType::ProtocolError));
                                             }
-
-                                            // Create new lobby
-                                            let new_lobby = Lobby {
-                                                owner: client.id.clone(),
-                                                id: new_lobby_id.clone(),
-                                                player_ids: vec![client.id.clone()],
-                                                game_started: false,
-                                                game_metadata: state_ref.supported_games.get(&create_lobby_request.game_type_id).unwrap().get_metadata().clone()
-                                            };
-                                            client.lobby_id = Some(new_lobby_id.clone());
-                                            state_ref.lobbies.insert(new_lobby_id, new_lobby.clone());
-                                            client_socket.send_message(build_lobby_info_response(StatusCode::Success, new_lobby.clone()));
-                                        } else {
-                                            client_socket.send_message(build_server_headers(StatusCode::AlreadyInALobby, MessageType::ProtocolError));
                                         }
-                                    } else {
-                                        client_socket.send_message(build_server_headers(StatusCode::UnsupportedGame, MessageType::ProtocolError));
+                                        Err(e) => {}
                                     }
                                 }
                                 MessageType::SupportedGamesRequest => {
@@ -248,34 +255,38 @@ impl GameProtocolServer {
                                 }
                                 MessageType::JoinLobbyRequest => {
                                     // Make sure client_bin isn't already in a lobby
-                                    let client = state_ref.clients.get_mut(&client_id).unwrap();
-                                    if client.lobby_id.is_none() {
-                                        let join_request = parse_join_lobby_request(remainder);
 
-                                        if state_ref.lobbies.contains_key(&join_request.lobby_id) {
-                                            let lobby = state_ref.lobbies.get_mut(&join_request.lobby_id).unwrap();
+                                    match parse_message_data::<JoinLobbyRequest>(remainder) {
+                                        Ok(res) => {
+                                            let client = state_ref.clients.get_mut(&client_id).unwrap();
+                                            if client.lobby_id.is_none() {
+                                                if state_ref.lobbies.contains_key(&res.lobby_id) {
+                                                    let lobby = state_ref.lobbies.get_mut(&res.lobby_id).unwrap();
 
-                                            // If lobby isn't full, add the client_bin to the lobby, send other connected clients updated lobby info, and send client_bin lobby info
-                                            if !lobby.is_full() {
-                                                // Update lobby and client_bin
-                                                lobby.player_ids.push(client_id.clone());
-                                                client.lobby_id = Some(join_request.lobby_id.clone());
+                                                    // If lobby isn't full, add the client_bin to the lobby, send other connected clients updated lobby info, and send client_bin lobby info
+                                                    if !lobby.is_full() {
+                                                        // Update lobby and client_bin
+                                                        lobby.player_ids.push(client_id.clone());
+                                                        client.lobby_id = Some(res.lobby_id.clone());
 
-                                                // Build response to send to all clients in lobby, including the newly added one.
-                                                let response = build_lobby_info_response(StatusCode::Success, lobby.clone());
-                                                for client_id in lobby.player_ids.iter() {
-                                                    state_ref.clients.get(client_id).unwrap().socket.send_message(response.clone());
+                                                        // Build response to send to all clients in lobby, including the newly added one.
+                                                        let response = build_lobby_info_response(StatusCode::Success, lobby.clone());
+                                                        for client_id in lobby.player_ids.iter() {
+                                                            state_ref.clients.get(client_id).unwrap().socket.send_message(response.clone());
+                                                        }
+                                                    } else if lobby.game_started {
+                                                        client_socket.send_message(build_server_headers(StatusCode::GameStarted, MessageType::ProtocolError));
+                                                    } else {
+                                                        client_socket.send_message(build_server_headers(StatusCode::LobbyFull, MessageType::ProtocolError));
+                                                    }
+                                                } else {
+                                                    client_socket.send_message(build_server_headers(StatusCode::LobbyNotFound, MessageType::ProtocolError));
                                                 }
-                                            } else if lobby.game_started {
-                                                client_socket.send_message(build_server_headers(StatusCode::GameStarted, MessageType::ProtocolError));
                                             } else {
-                                                client_socket.send_message(build_server_headers(StatusCode::LobbyFull, MessageType::ProtocolError));
+                                                client_socket.send_message(build_server_headers(StatusCode::AlreadyInALobby, MessageType::ProtocolError));
                                             }
-                                        } else {
-                                            client_socket.send_message(build_server_headers(StatusCode::LobbyNotFound, MessageType::ProtocolError));
                                         }
-                                    } else {
-                                        client_socket.send_message(build_server_headers(StatusCode::AlreadyInALobby, MessageType::ProtocolError));
+                                        Err(e) => {}
                                     }
                                 }
                                 MessageType::LobbyInfoRequest => {
@@ -329,74 +340,82 @@ impl GameProtocolServer {
                                     }
                                 }
                                 MessageType::StartGameRequest => {
-                                    let start_request = parse_start_game_request(remainder);
 
-                                    // Check if client is in a lobby first.
-                                    let client = state_ref.clients.get(&client_id).unwrap();
-                                    if let Some(lobby_id) = &client.lobby_id {
-                                        let lobby = state_ref.lobbies.get_mut(lobby_id).unwrap();
-                                        let player_req_met =
-                                            lobby.player_ids.len() >= lobby.game_metadata.min_required_players &&
-                                            lobby.player_ids.len() <= lobby.game_metadata.max_players;
+                                    match parse_message_data::<StartGameRequest>(remainder) {
+                                        Ok(res) => {
+                                            // Check if client is in a lobby first.
+                                            let client = state_ref.clients.get(&client_id).unwrap();
+                                            if let Some(lobby_id) = &client.lobby_id {
+                                                let lobby = state_ref.lobbies.get_mut(lobby_id).unwrap();
+                                                let player_req_met =
+                                                    lobby.player_ids.len() >= lobby.game_metadata.min_required_players &&
+                                                        lobby.player_ids.len() <= lobby.game_metadata.max_players;
 
-                                        // Start game if player requirement is met, requested lobby is the one the client is in, and if the client is the owner of the lobby
-                                        if start_request.lobby_id.eq(lobby_id) && lobby.owner.eq(&client_id) && player_req_met {
-                                            let mut new_game = state_ref.supported_games.get(&lobby.game_metadata.get_game_type_id()).unwrap().init_new();
+                                                // Start game if player requirement is met, requested lobby is the one the client is in, and if the client is the owner of the lobby
+                                                if res.lobby_id.eq(lobby_id) && lobby.owner.eq(&client_id) && player_req_met {
+                                                    let mut new_game = state_ref.supported_games.get(&lobby.game_metadata.get_game_type_id()).unwrap().init_new();
 
-                                            for id in lobby.player_ids.iter() {
-                                                new_game.add_player(id.clone());
+                                                    for id in lobby.player_ids.iter() {
+                                                        new_game.add_player(id.clone());
+                                                    }
+
+                                                    // Tie game session with lobby ID
+                                                    state_ref.games_in_progress.insert(lobby_id.clone(), new_game);
+
+                                                    for id in lobby.player_ids.iter() {
+                                                        let game = state_ref.games_in_progress.get(lobby_id).unwrap();
+                                                        let game_state = build_game_state_response(StatusCode::Success, game.get_game_state());
+                                                        state_ref.clients.get(id).unwrap().socket.send_message(game_state);
+                                                    }
+
+                                                    // Set lobby as the game is in progress
+                                                    lobby.game_started = true;
+                                                } else {
+                                                    client_socket.send_message(build_server_headers(StatusCode::GameStartCriteriaNotMet, MessageType::ProtocolError));
+                                                }
+                                            } else {
+                                                // If not in lobby, send error
+                                                client_socket.send_message(build_server_headers(StatusCode::NotInLobby, MessageType::ProtocolError));
                                             }
-
-                                            // Tie game session with lobby ID
-                                            state_ref.games_in_progress.insert(lobby_id.clone(), new_game);
-
-                                            for id in lobby.player_ids.iter() {
-                                                let game = state_ref.games_in_progress.get(lobby_id).unwrap();
-                                                let game_state = build_game_state_response(StatusCode::Success, game.get_game_state());
-                                                state_ref.clients.get(id).unwrap().socket.send_message(game_state);
-                                            }
-
-                                            // Set lobby as the game is in progress
-                                            lobby.game_started = true;
-                                        } else {
-                                            client_socket.send_message(build_server_headers(StatusCode::GameStartCriteriaNotMet, MessageType::ProtocolError));
                                         }
-                                    } else {
-                                        // If not in lobby, send error
-                                        client_socket.send_message(build_server_headers(StatusCode::NotInLobby, MessageType::ProtocolError));
+                                        Err(e) => {}
                                     }
-
                                 }
                                 MessageType::MoveRequest => {
-                                    let client_move = parse_move_request(remainder);
 
-                                    // If client wasn't in a lobby, it's definitely not in a game session.
-                                    // Also lobby ID is used for the game session hash map too.
-                                    let client = state_ref.clients.get(&client_id).unwrap();
-                                    if let Some(lobby_id) = &client.lobby_id {
-                                        if let Some(game) = state_ref.games_in_progress.get_mut(lobby_id) {
-                                            let game_ended = game.end_condition_met().0;
-                                            let is_move_valid = game.is_valid_move(&client_move);
-                                            if is_move_valid && !game_ended {
-                                                game.apply_move(&client_move);
+                                    match parse_message_data::<Box<dyn GameMove>>(remainder) {
+                                        Ok(res) => {
+                                            // If client wasn't in a lobby, it's definitely not in a game session.
+                                            // Also lobby ID is used for the game session hash map too.
+                                            let client = state_ref.clients.get(&client_id).unwrap();
+                                            if let Some(lobby_id) = &client.lobby_id {
+                                                if let Some(game) = state_ref.games_in_progress.get_mut(lobby_id) {
+                                                    let game_ended = game.end_condition_met().0;
+                                                    let is_move_valid = game.is_valid_move(&res);
+                                                    if is_move_valid && !game_ended {
+                                                        game.apply_move(&res);
 
-                                                let game_state = build_game_state_response(StatusCode::Success, game.get_game_state());
-                                                for id in state_ref.lobbies.get(lobby_id).unwrap().player_ids.iter() {
-                                                    state_ref.clients.get(id).unwrap().socket.send_message(game_state.clone());
+                                                        let game_state = build_game_state_response(StatusCode::Success, game.get_game_state());
+                                                        for id in state_ref.lobbies.get(lobby_id).unwrap().player_ids.iter() {
+                                                            state_ref.clients.get(id).unwrap().socket.send_message(game_state.clone());
+                                                        }
+                                                    } else if game_ended {
+                                                        // If client tries to make a move but game is over, send a GameOver game_protocol error.
+                                                        client.socket.send_message(build_server_headers(StatusCode::GameOver, MessageType::ProtocolError));
+                                                    } else if is_move_valid {
+                                                        // If client's move is invalid, then return an error.
+                                                        client.socket.send_message(build_server_headers(StatusCode::InvalidMove, MessageType::ProtocolError));
+                                                    }
+                                                } else {
+                                                    client_socket.send_message(build_server_headers(StatusCode::GameSessionNotFound, MessageType::ProtocolError));
                                                 }
-                                            } else if game_ended {
-                                                // If client tries to make a move but game is over, send a GameOver game_protocol error.
-                                                client.socket.send_message(build_server_headers(StatusCode::GameOver, MessageType::ProtocolError));
-                                            } else if is_move_valid {
-                                                // If client's move is invalid, then return an error.
-                                                client.socket.send_message(build_server_headers(StatusCode::InvalidMove, MessageType::ProtocolError));
+                                            } else {
+                                                client_socket.send_message(build_server_headers(StatusCode::NotInLobby, MessageType::ProtocolError));
                                             }
-                                        } else {
-                                            client_socket.send_message(build_server_headers(StatusCode::GameSessionNotFound, MessageType::ProtocolError));
                                         }
-                                    } else {
-                                        client_socket.send_message(build_server_headers(StatusCode::NotInLobby, MessageType::ProtocolError));
+                                        Err(e) => {}
                                     }
+
                                 }
                                 MessageType::ReturnToLobbyRequest => {
                                     let client = state_ref.clients.get(&client_id).unwrap();

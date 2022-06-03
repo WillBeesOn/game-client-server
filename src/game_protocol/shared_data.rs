@@ -1,6 +1,5 @@
-use std::sync::Arc;
 use serde::{Serialize, Deserialize};
-use crate::game_module::{GameMetadata, GameModule, GameState};
+use crate::game_module::{GameMetadata};
 
 /*
     Contains data structures that are shared between client and server

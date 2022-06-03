@@ -1,12 +1,36 @@
 use std::mem::size_of;
-use std::sync::Arc;
 use serde_json;
 use crate::common_message_utils::{build_message_body, parse_message_payload, parse_message_type};
 use crate::enums::{MessageType, StatusCode};
 use crate::game_module::{GameMove, GameState};
 use crate::shared_data::{ConnectRequest, ConnectResponse, CreateLobbyRequest, JoinLobbyRequest, Lobby, LobbyInfoResponse, LobbyListResponse, MissingMessageResponse, NoAuth, StartGameRequest, SupportedGamesResponse, UnsolicitedMessage};
 
-// Build the headers for server_bin message: status code and message type.
+/*
+    Full of helper functions to parse client requests and build server responses.
+    A lot of these could probably be made to use generics, but currently don't have enough time
+    to sort out a refactor. This all still works as intended.
+    Functions should be self explanatory: build and parse message types.
+ */
+
+
+// Parse client message headers, returning the message ID, message type, and remaining data
+pub fn parse_client_message_header(raw_message: &[u8]) -> (u32, MessageType, &[u8]) {
+    // Message sequence ID.
+    let (id_bytes, remainder) = raw_message.split_at(size_of::<u32>());
+    let message_id = u32::from_be_bytes(id_bytes.try_into().unwrap());
+
+    // Message type.
+    let (message_type, remainder) = parse_message_type(remainder);
+    (message_id, message_type, remainder)
+}
+
+// TODO a way to parse this? Different than the other ones so can't necessarily use the generic func
+pub fn parse_connect_request(data: &[u8]) -> ConnectRequest<NoAuth> {
+    let body = parse_message_payload(data);
+    ConnectRequest::new(NoAuth {})
+}
+
+// Build the headers for server message: status code and message type.
 pub fn build_server_headers(status_code: StatusCode, message_type: MessageType) -> Vec<u8> {
     let mut byte_vec = vec![];
     byte_vec.extend_from_slice(&(status_code as u16).to_be_bytes());
@@ -67,46 +91,4 @@ pub fn build_game_state_response(status_code: StatusCode, game_state: &dyn GameS
     let serialized = serde_json::to_string(game_state).unwrap();
     byte_vec.extend_from_slice(&build_message_body(Some(serialized)));
     byte_vec
-}
-
-// Parse client_bin message into its respective data
-pub fn parse_client_message_header(raw_message: &[u8]) -> (u32, MessageType, &[u8]) {
-    // Message sequence ID.
-    let (id_bytes, remainder) = raw_message.split_at(size_of::<u32>());
-    let message_id = u32::from_be_bytes(id_bytes.try_into().unwrap());
-
-    // Message type.
-    let (message_type, remainder) = parse_message_type(remainder);
-    (message_id, message_type, remainder)
-}
-
-// Parse a ConnectRequest from incoming data.
-pub fn parse_connect_request(data: &[u8]) -> ConnectRequest<NoAuth> {
-    let body = parse_message_payload(data);
-    ConnectRequest::new(NoAuth {})
-}
-
-
-pub fn parse_join_lobby_request(data: &[u8]) -> JoinLobbyRequest {
-    let body = parse_message_payload(data);
-    let join_request: JoinLobbyRequest = serde_json::from_slice(&body.as_bytes()).unwrap();
-    join_request
-}
-
-pub fn parse_create_lobby_request(data: &[u8]) -> CreateLobbyRequest {
-    let body = parse_message_payload(data);
-    let create_lobby_request: CreateLobbyRequest = serde_json::from_slice(&body.as_bytes()).unwrap();
-    create_lobby_request
-}
-
-pub fn parse_start_game_request(data: &[u8]) -> StartGameRequest {
-    let body = parse_message_payload(data);
-    let create_lobby_request: StartGameRequest = serde_json::from_slice(&body.as_bytes()).unwrap();
-    create_lobby_request
-}
-
-pub fn parse_move_request(data: &[u8]) -> Box<dyn GameMove> {
-    let body = parse_message_payload(data);
-    let move_request: Box<dyn GameMove> = serde_json::from_slice(&body.as_bytes()).unwrap();
-    move_request
 }

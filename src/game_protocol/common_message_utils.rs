@@ -1,5 +1,7 @@
 use std::mem::size_of;
 use std::str;
+use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use crate::enums::{MessageType, StatusCode};
 
 /*
@@ -8,7 +10,9 @@ use crate::enums::{MessageType, StatusCode};
 
 
 // Parse size and body of message into u32 and JSON string.
-pub fn parse_message_payload(data: &[u8]) -> String {
+// Throw errors if the body checksum or size in bytes between
+// incoming message data and local calculations does not match
+pub fn parse_message_payload(data: &[u8]) -> Result<String, &'static str> {
     // Data size
     let (size_bytes, remainder) = data.split_at(size_of::<u32>());
     let size = u32::from_be_bytes(size_bytes.try_into().unwrap());
@@ -21,22 +25,22 @@ pub fn parse_message_payload(data: &[u8]) -> String {
         let remote_checksum = u32::from_be_bytes(checksum_bytes.try_into().unwrap());
 
         // Extract data and get checksum for the data
-        let (data_bytes, remainder) = remainder.split_at(size as usize);
+        let (data_bytes, _) = remainder.split_at(size as usize);
         let local_checksum = crc32fast::hash(&data_bytes);
 
         // If the checksums don't match, throw error. Otherwise parse the data into a string
         if remote_checksum != local_checksum {
-            // TODO throw check sum error use Result return value so I can throw an error here
+            return Err("Checksums do not match.");
         }
 
         // Throw error if size described in message is not equal to the number of bytes of the body
         if size as usize > data_bytes.len() {
-            // TODO throw data size error
+            return Err("Size of body data does not match.");
         }
 
         body = str::from_utf8(data_bytes).unwrap();
     }
-    body.to_string()
+    Ok(body.to_string())
 }
 
 // Build the body into a byte vector to send.
@@ -56,6 +60,20 @@ pub fn build_message_body(body: Option<String>) -> Vec<u8> {
         byte_vec.extend_from_slice(&0_u32.to_be_bytes());
     }
     byte_vec
+}
+
+// Generic function for parsing byte array into a data type
+pub fn parse_message_data<'a, T>(raw_message: &[u8]) -> Result<T, &'static str> where T: DeserializeOwned {
+    return match parse_message_payload(raw_message) {
+        Ok(data_string) => {
+            // A little bit clumsy, but due to the Deserialize trait's lifetime requirements,
+            // we have to pass the data string back too.
+            Ok(serde_json::from_str(&data_string).unwrap())
+        }
+        Err(e) => {
+            Err(e)
+        }
+    }
 }
 
 // Maps integers to the message type enumeration

@@ -11,6 +11,16 @@ use crate::shared_data::{ConnectResponse, CreateLobbyRequest, JoinLobbyRequest, 
     Functions should be self explanatory: build and parse message types.
  */
 
+// Parse server message headers, returning them and the remaining bytes of data
+pub fn parse_server_message_header(raw_message: &[u8]) -> (StatusCode, MessageType, &[u8]) {
+    // Message sequence ID.
+    let (status_code, remainder) = parse_status_code(raw_message);
+
+    // Message type.
+    let (message_type, remainder) = parse_message_type(remainder);
+    (status_code, message_type, remainder)
+}
+
 // Build the basic client message fields into a byte vector to send.
 // Handles message sequence and message type.
 pub fn build_client_headers(next_in_sequence: u32, message_type: MessageType) -> Vec<u8> {
@@ -52,56 +62,4 @@ pub fn build_move_request(next_in_sequence: u32, game_move: &dyn GameMove) -> Ve
     let serialized = serde_json::to_string(game_move).unwrap();
     byte_vec.extend_from_slice(&build_message_body(Some(serialized)));
     byte_vec
-}
-
-// Parse server message headers, returning them and the remaining bytes of data
-pub fn parse_server_message_header(raw_message: &[u8]) -> (StatusCode, MessageType, &[u8]) {
-    // Message sequence ID.
-    let (status_code, remainder) = parse_status_code(raw_message);
-
-    // Message type.
-    let (message_type, remainder) = parse_message_type(remainder);
-    (status_code, message_type, remainder)
-}
-
-pub fn parse_connect_response(raw_message: &[u8]) -> ConnectResponse {
-    let data_string = parse_message_payload(raw_message);
-    let data: ConnectResponse = serde_json::from_slice(data_string.as_bytes()).unwrap();
-    data
-}
-
-pub fn parse_lobby_list_response(raw_message: &[u8]) -> LobbyListResponse {
-    let data_string = parse_message_payload(raw_message);
-    let data: LobbyListResponse = serde_json::from_slice(data_string.as_bytes()).unwrap();
-    data
-}
-
-pub fn parse_lobby_info_response(raw_message: &[u8]) -> LobbyInfoResponse {
-    let data_string = parse_message_payload(raw_message);
-    let data: LobbyInfoResponse = serde_json::from_slice(data_string.as_bytes()).unwrap();
-    data
-}
-
-pub fn parse_supported_games_response(raw_message: &[u8]) -> SupportedGamesResponse {
-    let data_string = parse_message_payload(raw_message);
-    let data: SupportedGamesResponse = serde_json::from_slice(data_string.as_bytes()).unwrap();
-    data
-}
-
-pub fn parse_game_state_response(raw_message: &[u8]) -> Box<dyn GameState> {
-    let data_string = parse_message_payload(raw_message);
-    let data: Box<dyn GameState> = serde_json::from_slice(data_string.as_bytes()).unwrap();
-    data
-}
-
-pub fn parse_missing_message_response(raw_message: &[u8]) -> MissingMessageResponse {
-    let data_string = parse_message_payload(raw_message);
-    let data: MissingMessageResponse = serde_json::from_slice(data_string.as_bytes()).unwrap();
-    data
-}
-
-pub fn parse_unsolicited_message(raw_message: &[u8]) -> UnsolicitedMessage {
-    let data_string = parse_message_payload(raw_message);
-    let data: UnsolicitedMessage = serde_json::from_slice(data_string.as_bytes()).unwrap();
-    data
 }
