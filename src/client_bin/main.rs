@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use eframe::egui;
 use egui::Button;
 use game_protocol::client::GameProtocolClient;
@@ -61,7 +63,8 @@ impl eframe::App for GameClient {
             let connection_status = self.protocol_handler.get_protocol_state();
 
             // While no connection is established, allow user to specify port and IP to connect to.
-            if matches!(connection_status, ProtocolState::Closed) {
+            if matches!(connection_status, ProtocolState::Closed) ||
+                matches!(connection_status, ProtocolState::Authenticating) {
                 ui.horizontal(|ui| {
                     ui.label("Server IP address");
                     ui.text_edit_singleline(&mut self.ip);
@@ -71,13 +74,21 @@ impl eframe::App for GameClient {
                     ui.text_edit_singleline(&mut self.port);
                 });
 
-                if ui.button("Connect to server").clicked() {
+                // Only allow user to click the connect button if we are not already attempting to authenticate
+                let enable_connect_button = !matches!(connection_status, ProtocolState::Authenticating);
+                if ui.add_enabled(enable_connect_button, Button::new("Connect to server")).clicked() {
                     self.protocol_handler.connect(&self.ip, &self.port);
+                }
+
+                // Show this message as client is attempting to connect to server.
+                if !enable_connect_button {
+                    ui.label("Attempting to connect to server...");
                 }
             }
 
             // While there is a connection established, show where the client_bin is connected to.
-            if !matches!(connection_status, ProtocolState::Closed) {
+            if !matches!(connection_status, ProtocolState::Closed) &&
+                !matches!(connection_status, ProtocolState::Authenticating) {
                 ui.horizontal(|ui| {
                     ui.label(format!("Connected to server at {}", self.protocol_handler.get_socket_address()));
                 });

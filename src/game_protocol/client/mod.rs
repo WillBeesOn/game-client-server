@@ -147,7 +147,10 @@ impl GameProtocolClient {
         drop(state_lock);
 
         // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        self.send_message(build_client_headers(next_message_num, MessageType::LobbyListRequest));
+        send_message(
+            build_client_headers(next_message_num, MessageType::LobbyListRequest),
+            self.state.clone()
+        );
         if !self.state.lock().unwrap().is_listening_async {
             listen(socket, self.state.clone());
         }
@@ -165,7 +168,10 @@ impl GameProtocolClient {
         drop(state_lock);
 
         // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        self.send_message(build_client_headers(next_message_num, MessageType::SupportedGamesRequest));
+        send_message(
+            build_client_headers(next_message_num, MessageType::SupportedGamesRequest),
+            self.state.clone()
+        );
         if !self.state.lock().unwrap().is_listening_async {
             listen(socket, self.state.clone());
         }
@@ -183,7 +189,10 @@ impl GameProtocolClient {
         drop(state_lock);
 
         // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        self.send_message(build_client_headers(next_message_num, MessageType::LobbyInfoRequest));
+        send_message(
+            build_client_headers(next_message_num, MessageType::LobbyInfoRequest),
+            self.state.clone()
+        );
         if !self.state.lock().unwrap().is_listening_async {
             listen(socket, self.state.clone());
         }
@@ -201,7 +210,10 @@ impl GameProtocolClient {
         drop(state_lock);
 
         // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        self.send_message(build_create_lobby_request(next_message_num, game_type_id.to_string()));
+        send_message(
+            build_create_lobby_request(next_message_num, game_type_id.to_string()),
+            self.state.clone()
+        );
         if !self.state.lock().unwrap().is_listening_async {
             listen(socket, self.state.clone());
         }
@@ -219,7 +231,10 @@ impl GameProtocolClient {
         drop(state_lock);
 
         // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        self.send_message(build_join_lobby_request(next_message_num, lobby_id.to_string()));
+        send_message(
+            build_join_lobby_request(next_message_num, lobby_id.to_string()),
+            self.state.clone()
+        );
         if !self.state.lock().unwrap().is_listening_async {
             listen(socket, self.state.clone());
         }
@@ -237,7 +252,10 @@ impl GameProtocolClient {
         drop(state_lock);
 
         // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        self.send_message(build_client_headers(next_message_num, MessageType::LeaveLobbyRequest));
+        send_message(
+            build_client_headers(next_message_num, MessageType::LeaveLobbyRequest),
+            self.state.clone()
+        );
         if !self.state.lock().unwrap().is_listening_async {
             listen(socket, self.state.clone());
         }
@@ -265,7 +283,10 @@ impl GameProtocolClient {
         }
 
         // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        self.send_message(build_start_game_request(next_message_num, lobby_id));
+        send_message(
+            build_start_game_request(next_message_num, lobby_id),
+            self.state.clone()
+        );
         if !self.state.lock().unwrap().is_listening_async {
             listen(socket, self.state.clone());
         }
@@ -281,7 +302,10 @@ impl GameProtocolClient {
         drop(state_lock);
 
         // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        self.send_message(build_move_request(next_message_num, game_move));
+        send_message(
+            build_move_request(next_message_num, game_move),
+            self.state.clone()
+        );
         if !self.state.lock().unwrap().is_listening_async {
             listen(socket, self.state.clone());
         }
@@ -297,7 +321,10 @@ impl GameProtocolClient {
         drop(state_lock);
 
         // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        self.send_message(build_client_headers(next_message_num, MessageType::ReturnToLobbyRequest));
+        send_message(
+            build_client_headers(next_message_num, MessageType::ReturnToLobbyRequest),
+            self.state.clone()
+        );
         if !self.state.lock().unwrap().is_listening_async {
             listen(socket, self.state.clone());
         }
@@ -315,7 +342,10 @@ impl GameProtocolClient {
         drop(state_lock);
 
         // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        self.send_message(build_client_headers(next_message_num, MessageType::DisconnectRequest));
+        send_message(
+            build_client_headers(next_message_num, MessageType::DisconnectRequest),
+            self.state.clone()
+        );
         if !self.state.lock().unwrap().is_listening_async {
             listen(socket, self.state.clone());
         }
@@ -328,60 +358,45 @@ impl GameProtocolClient {
             return;
         }
 
-        // Set the game_protocol state and save the ip and port
+        // Set the game_protocol state and save the ip and port. Drop the mutex so the below thread can use it.
         let mut state_lock = self.state.lock().unwrap();
         state_lock.previous_protocol_state = state_lock.protocol_state;
         state_lock.protocol_state = ProtocolState::Authenticating;
         self.ip = Some(ip.clone());
         self.port = Some(port.clone());
+        drop(state_lock);
 
         // If stored socket is None (unassigned, not connected), then try to connect.
-        match TcpStream::connect(self.get_socket_address()) {
-            Ok(tcp_stream) => {
-                // Store the socket and send a connect request.
-                let socket = Arc::new(tcp_stream);
-                state_lock.socket = Some(socket.clone());
-
-                // Build connect request and send it
-                let connect_request = build_connect_request(state_lock.next_message_num, None);
-                drop(state_lock);
-
-                self.send_message(connect_request);
-                listen(socket, self.state.clone());
-            }
-            Err(e) => {
-                state_lock.protocol_state = state_lock.protocol_state;
-                state_lock.protocol_state = ProtocolState::Closed;
-                println!("Connect error: {}", e);
-            }
-        }
-    }
-
-    // Private function for client to send a message to server.
-    fn send_message(&mut self, data: Vec<u8>) {
+        // Get the socket address to connect to and clone the state pointer so it can be used in
+        // the thread that attempts to connect.
+        let target_socket_address = self.get_socket_address();
         let state_clone = self.state.clone();
-        let mut state_lock = state_clone.lock().unwrap();
 
-        // Only send if the socket has bbeen set
-        if state_lock.socket.is_some() {
+        // Spawn a thread that attempts to connect to server. Put this in a separate thread
+        // so it doesn't block main thread which the UI is running on.
+        thread::spawn(move || {
+            match TcpStream::connect(target_socket_address) {
+                Ok(tcp_stream) => {
+                    // Store the socket and send a connect request.
+                    let mut state_lock = state_clone.lock().unwrap();
+                    let socket = Arc::new(tcp_stream);
+                    state_lock.socket = Some(socket.clone());
 
-            // Cache this message in case we need to resend it.
-            let id  = state_lock.next_message_num;
-            state_lock.previous_message_cache.insert(id, data.clone());
+                    // Build connect request and send it
+                    let connect_request = build_connect_request(state_lock.next_message_num, None);
+                    drop(state_lock);
 
-            // Handle incrementing message ID
-            if state_lock.next_message_num == u32::MAX {
-                state_lock.next_message_num = 0;
-            } else {
-                state_lock.next_message_num += 1;
-            }
-            match state_lock.socket.as_ref().unwrap().as_ref().write(data.as_slice()) {
-                Ok(_) => {}
-                Err(e) => {
-                    println!("Socket write error. {:?}", e);
+                    send_message(connect_request, state_clone.clone());
+                    listen(socket, state_clone);
                 }
-            };
-        }
+                Err(e) => {
+                    let mut state_lock = state_clone.lock().unwrap();
+                    state_lock.protocol_state = state_lock.protocol_state;
+                    state_lock.protocol_state = ProtocolState::Closed;
+                    println!("Connect error: {}", e);
+                }
+            }
+        });
     }
 
     // Listen for server responses asynchronously via a thread and looping through incoming messages.
@@ -406,7 +421,35 @@ impl GameProtocolClient {
     }
 }
 
-// Listen for server messages. Decoupled from client object since accessing "self" in a thread causes some issues, so it's just easier to make a separate function.
+// Function for client to send a message to the server.
+// Decoupled from client object since accessing "self" in a thread causes some issues, so it's just easier to make a separate function.
+fn send_message(data: Vec<u8>, state: Arc<Mutex<GameProtocolClientState>>) {
+    let mut state_lock = state.lock().unwrap();
+
+    // Only send if the socket has bbeen set
+    if state_lock.socket.is_some() {
+
+        // Cache this message in case we need to resend it.
+        let id  = state_lock.next_message_num;
+        state_lock.previous_message_cache.insert(id, data.clone());
+
+        // Handle incrementing message ID
+        if state_lock.next_message_num == u32::MAX {
+            state_lock.next_message_num = 0;
+        } else {
+            state_lock.next_message_num += 1;
+        }
+        match state_lock.socket.as_ref().unwrap().as_ref().write(data.as_slice()) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Socket write error. {:?}", e);
+            }
+        };
+    }
+}
+
+// Listen for server messages.
+// Decoupled from client object since accessing "self" in a thread causes some issues, so it's just easier to make a separate function.
 fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
     if state.lock().unwrap().socket.is_some() {
         let mut buffer = [0; 4096];
