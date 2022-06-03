@@ -14,7 +14,6 @@ pub fn build_client_headers(next_in_sequence: u32, message_type: MessageType) ->
 
 // Consists of message sequence, message type, data size (in bytes), check sum, and body.
 pub fn build_connect_request(next_in_sequence: u32, body: Option<String>) -> Vec<u8> {
-    // TODO need to make sure this works with sending NoAuth as the body, not just sending an empty body.
     let mut byte_vec = build_client_headers(next_in_sequence, MessageType::ConnectRequest);
     byte_vec.extend_from_slice(&build_message_body(body));
     byte_vec

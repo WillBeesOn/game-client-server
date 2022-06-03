@@ -326,7 +326,6 @@ impl GameProtocolClient {
 }
 
 fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
-    // TODO need to block async listen to synchronously listen
     if state.lock().unwrap().socket.is_some() {
         let mut buffer = [0; 4096];
         match socket.as_ref().read(&mut buffer) { // TODO should I set timeout?
@@ -383,7 +382,6 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                             }
                         }
                         MessageType::LobbyInfoResponse => {
-                            // TODO should we handle joining lobby and just getting the info separately?
                             if matches!(status_code, StatusCode::Success) {
                                 let data = parse_lobby_info_response(remainder);
                                 state_lock.protocol_state = ProtocolState::InLobby;

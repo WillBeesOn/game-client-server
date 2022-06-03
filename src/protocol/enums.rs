@@ -30,10 +30,10 @@ pub enum MessageType {
 pub enum StatusCode {
     UnexpectedError,
     Success,
-    DataParseError, // TODO use this
-    DataIntegrityError, // TODO use this
+    DataParseError,
+    DataIntegrityError,
     MessageSequenceError,
-    MalformedBody, // TODO use this
+    MalformedBody,
     UnsupportedRequestType,
     UnsupportedAuthMethod,
     UnsupportedGame,
@@ -43,7 +43,7 @@ pub enum StatusCode {
     GameStarted,
     NotInLobby,
     GameSessionNotFound,
-    LobbyNotFound, // TODO use
+    LobbyNotFound,
     GameStartCriteriaNotMet,
     GameOver,
     InvalidMove

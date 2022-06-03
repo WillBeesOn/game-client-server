@@ -2,7 +2,6 @@ use std::mem::size_of;
 use std::str;
 use crate::enums::{MessageType, StatusCode};
 
-// TODO need to verify size of body is equal to the data size extracted
 // Parse size and body of message into u32 and JSON string.
 pub fn parse_message_payload(data: &[u8]) -> (u32, String) {
     // Data size
@@ -22,8 +21,13 @@ pub fn parse_message_payload(data: &[u8]) -> (u32, String) {
 
         // If the checksums don't match, throw error. Otherwise parse the data into a string
         if remote_checksum != local_checksum {
-            // TODO throw error
+            // TODO throw check sum error
         }
+
+        if size > data_bytes.len() {
+            // TODO throw data size error
+        }
+
         body = str::from_utf8(data_bytes).unwrap();
     }
 

@@ -446,8 +446,6 @@ impl GameProtocolServer {
 
             }
             // When the listening loop exits, do clean up.
-            // TODO Remove client from any game_module session it's in.
-            // TODO assign other client ownership of lobby
             // Remove client_bin from any lobby it's in.
             // Remove client_bin from client_bin list on server_bin.
             if !client_id.is_empty() {

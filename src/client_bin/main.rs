@@ -55,7 +55,6 @@ impl eframe::App for GameClient {
 
             // While no connection is established, allow user to specify port and IP to connect to.
             if matches!(connection_status, ProtocolState::Closed) {
-                // TODO need to verify IP and port number
                 ui.horizontal(|ui| {
                     ui.label("Server IP address");
                     ui.text_edit_singleline(&mut self.ip);
@@ -119,7 +118,6 @@ impl eframe::App for GameClient {
                 // If there are lobbies, render them in a scrollable list so a large number of them can be displayed
                 let lobbies = self.protocol_handler.get_lobby_list();
                 if lobbies.len() > 0 {
-                    // TODO make sure client can only join games that it supports
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for l in lobbies.iter() {
                             ui.horizontal(|ui| {
