@@ -34,10 +34,10 @@ pub enum MessageType {
 pub enum StatusCode {
     UnexpectedError,
     Success,
-    DataParseError,
+    DataParseError, // TODO problem with getting data from byte vec?
     DataIntegrityError,
     MessageSequenceError,
-    MalformedBody,
+    MalformedBody, // TODO catch errors when deserializing
     UnsupportedRequestType,
     UnsupportedAuthMethod,
     UnsupportedGame,
@@ -71,4 +71,13 @@ pub enum ProtocolState {
     GameRunning,
     GettingGameState,
     LeavingGameSession
+}
+
+// For errors to be used with Result return types
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum ServerError {
+    ChecksumError,
+    BodySizeError,
+    BytesToStringError,
+    DeserializeError
 }

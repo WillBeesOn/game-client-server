@@ -1,9 +1,9 @@
 use std::mem::size_of;
 use serde_json;
-use crate::common_message_utils::{build_message_body, parse_message_payload, parse_message_type};
-use crate::enums::{MessageType, StatusCode};
-use crate::game_module::{GameMove, GameState};
-use crate::shared_data::{ConnectRequest, ConnectResponse, CreateLobbyRequest, JoinLobbyRequest, Lobby, LobbyInfoResponse, LobbyListResponse, MissingMessageResponse, NoAuth, StartGameRequest, SupportedGamesResponse, UnsolicitedMessage};
+use crate::common_message_utils::{build_message_body, parse_message_type};
+use crate::enums::{ServerError, MessageType, StatusCode};
+use crate::game_module::{GameState};
+use crate::shared_data::{ConnectRequest, ConnectResponse, Lobby, LobbyInfoResponse, LobbyListResponse, MissingMessageResponse, NoAuth, SupportedGamesResponse, UnsolicitedMessage};
 
 /*
     Full of helper functions to parse client requests and build server responses.
@@ -24,9 +24,7 @@ pub fn parse_client_message_header(raw_message: &[u8]) -> (u32, MessageType, &[u
     (message_id, message_type, remainder)
 }
 
-// TODO a way to parse this? Different than the other ones so can't necessarily use the generic func
-pub fn parse_connect_request(data: &[u8]) -> ConnectRequest<NoAuth> {
-    let body = parse_message_payload(data);
+pub fn parse_connect_request(_: &[u8]) -> ConnectRequest<NoAuth> {
     ConnectRequest::new(NoAuth {})
 }
 
@@ -91,4 +89,22 @@ pub fn build_game_state_response(status_code: StatusCode, game_state: &dyn GameS
     let serialized = serde_json::to_string(game_state).unwrap();
     byte_vec.extend_from_slice(&build_message_body(Some(serialized)));
     byte_vec
+}
+
+// Based on the error enum received, build an error response to send to the client.
+pub fn build_server_error_response(e: ServerError) -> Vec<u8> {
+     match e {
+         ServerError::ChecksumError => {
+            build_server_headers(StatusCode::DataIntegrityError, MessageType::ProtocolError)
+        }
+         ServerError::BodySizeError => {
+            build_server_headers(StatusCode::DataIntegrityError, MessageType::ProtocolError)
+        }
+         ServerError::BytesToStringError => {
+             build_server_headers(StatusCode::DataParseError, MessageType::ProtocolError)
+        }
+         ServerError::DeserializeError => {
+             build_server_headers(StatusCode::MalformedBody, MessageType::ProtocolError)
+        }
+    }
 }

@@ -8,8 +8,8 @@ use uuid::Uuid;
 use crate::common_message_utils::parse_message_data;
 use crate::enums::{MessageType, StatusCode};
 use crate::game_module::{GameModule, GameMove};
-use crate::server::server_message_utils::{build_connect_response, build_game_state_response, build_lobby_info_response, build_lobby_list_response, build_missing_message_response, build_server_headers, build_supported_game_response, parse_client_message_header, parse_connect_request};
-use crate::shared_data::{CreateLobbyRequest, JoinLobbyRequest, Lobby, NoAuth, StartGameRequest};
+use crate::server::server_message_utils::{build_connect_response, build_game_state_response, build_lobby_info_response, build_lobby_list_response, build_missing_message_response, build_server_error_response, build_server_headers, build_supported_game_response, parse_client_message_header, parse_connect_request};
+use crate::shared_data::{CreateLobbyRequest, JoinLobbyRequest, Lobby, StartGameRequest};
 
 mod server_message_utils;
 
@@ -27,7 +27,12 @@ pub trait SocketSend {
 
 impl SocketSend for TcpStream {
     fn send_message(&self, data: Vec<u8>) {
-        self.clone().write(data.as_slice());
+        match self.clone().write(data.as_slice()) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Client socket write error. {:?}", e);
+            }
+        };
     }
 }
 
@@ -255,7 +260,7 @@ impl GameProtocolServer {
                                             }
                                         }
                                         Err(e) => {
-                                            // TODO handle error, return appropriate response if a certain error type is given
+                                            client_socket.send_message(build_server_error_response(e));
                                         }
                                     }
                                 }
@@ -298,7 +303,9 @@ impl GameProtocolServer {
                                                 client_socket.send_message(build_server_headers(StatusCode::AlreadyInALobby, MessageType::ProtocolError));
                                             }
                                         }
-                                        Err(e) => {}
+                                        Err(e) => {
+                                            client_socket.send_message(build_server_error_response(e));
+                                        }
                                     }
                                 }
                                 MessageType::LobbyInfoRequest => {
@@ -391,7 +398,9 @@ impl GameProtocolServer {
                                                 client_socket.send_message(build_server_headers(StatusCode::NotInLobby, MessageType::ProtocolError));
                                             }
                                         }
-                                        Err(e) => {}
+                                        Err(e) => {
+                                            client_socket.send_message(build_server_error_response(e));
+                                        }
                                     }
                                 }
                                 MessageType::MoveRequest => {
@@ -429,7 +438,9 @@ impl GameProtocolServer {
                                                 client_socket.send_message(build_server_headers(StatusCode::NotInLobby, MessageType::ProtocolError));
                                             }
                                         }
-                                        Err(e) => {}
+                                        Err(e) => {
+                                            client_socket.send_message(build_server_error_response(e));
+                                        }
                                     }
 
                                 }
@@ -477,7 +488,12 @@ impl GameProtocolServer {
                         } else {
                             // Shut down socket if there are any issues.
                             println!("Shutting down...");
-                            client_socket.shutdown(Shutdown::Both);
+                            match client_socket.shutdown(Shutdown::Both) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    println!("Socket with client shutdown error. {:?}", e);
+                                }
+                            };
                             break;
                         }
                     }

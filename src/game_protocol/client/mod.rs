@@ -1,5 +1,5 @@
 use std::io::{Read, Write};
-use std::net::{TcpStream};
+use std::net::{Shutdown, TcpStream};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -375,7 +375,12 @@ impl GameProtocolClient {
             } else {
                 state_lock.next_message_num += 1;
             }
-            state_lock.socket.as_ref().unwrap().as_ref().write(data.as_slice());
+            match state_lock.socket.as_ref().unwrap().as_ref().write(data.as_slice()) {
+                Ok(_) => {}
+                Err(e) => {
+                    println!("Socket write error. {:?}", e);
+                }
+            };
         }
     }
 
@@ -425,7 +430,7 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                                         state_lock.protocol_state = ProtocolState::Idle;
                                     },
                                     Err(e) => {
-                                        // TODO handle error?
+                                        println!("Message parse error. {:?}", e);
                                     }
                                 }
 
@@ -451,7 +456,9 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                                         state_lock.protocol_state = ProtocolState::Idle;
                                         state_lock.lobbies = res.lobbies;
                                     }
-                                    Err(e) => {}
+                                    Err(e) => {
+                                        println!("Message parse error. {:?}", e);
+                                    }
                                 }
                             }
                         }
@@ -474,7 +481,9 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                                         state_lock.protocol_state = ProtocolState::Idle;
                                         state_lock.matching_supported_games = matching_games;
                                     }
-                                    Err(e) => {}
+                                    Err(e) => {
+                                        println!("Message parse error. {:?}", e);
+                                    }
                                 }
                             }
                         }
@@ -486,7 +495,9 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                                         state_lock.protocol_state = ProtocolState::InLobby;
                                         state_lock.current_lobby = Some(res.lobby);
                                     }
-                                    Err(e) => {}
+                                    Err(e) => {
+                                        println!("Message parse error. {:?}", e);
+                                    }
                                 }
                             }
                         }
@@ -512,7 +523,9 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                                         state_lock.game_in_progress.as_mut().unwrap().set_game_state(res);
                                     }
                                 }
-                                Err(e) => {}
+                                Err(e) => {
+                                    println!("Message parse error. {:?}", e);
+                                }
                             }
                         }
                         MessageType::UnsolicitedMessage => {
@@ -521,7 +534,9 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                                 Ok(res) => {
                                     state_lock.unsolicited_message = res.message;
                                 }
-                                Err(e) => {}
+                                Err(e) => {
+                                    println!("Message parse error. {:?}", e);
+                                }
                             }
                         }
                         MessageType::MissingMessageResponse => {
@@ -535,7 +550,12 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                                     for id in res.missing_message_ids.iter() {
                                         // If the ID is in the message cache, attempt to resend it
                                         if let Some(message) = previous_message_cache.get(id) {
-                                            socket.as_ref().write(message.as_slice()); // Send the message
+                                            match socket.as_ref().write(message.as_slice()) {
+                                                Ok(_) => {}
+                                                Err(e) => {
+                                                    println!("Resending previous message error. {:?}", e);
+                                                }
+                                            }
                                         } else {
                                             // If the ID is not found, then sending other cached messages
                                             // will cause the server to keep sending MissingMessageResponses since the expected
@@ -544,7 +564,9 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                                         }
                                     }
                                 }
-                                Err(e) => {}
+                                Err(e) => {
+                                    println!("Message parse error. {:?}", e);
+                                }
                             }
                         }
                         MessageType::ProtocolError => {
@@ -559,6 +581,14 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                     // Must re-lock state since it's possible for the mutex to be dropped during MissingMessageResponse handling
                     if let Some(callback) = &state_lock.on_message_received {
                         callback();
+                    }
+                } else {
+                    // If read size is 0 then server terminated connect, so clean things up on the client side.
+                    match socket.shutdown(Shutdown::Both) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            println!("Socket with server shutdown error. {:?}", e);
+                        }
                     }
                 }
             }

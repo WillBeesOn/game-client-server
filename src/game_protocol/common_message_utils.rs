@@ -1,8 +1,7 @@
 use std::mem::size_of;
 use std::str;
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
-use crate::enums::{MessageType, StatusCode};
+use crate::enums::{ServerError, MessageType, StatusCode};
 
 /*
     Contains message parsing functions common between client and server.
@@ -12,7 +11,7 @@ use crate::enums::{MessageType, StatusCode};
 // Parse size and body of message into u32 and JSON string.
 // Throw errors if the body checksum or size in bytes between
 // incoming message data and local calculations does not match
-pub fn parse_message_payload(data: &[u8]) -> Result<String, &'static str> {
+pub fn parse_message_payload(data: &[u8]) -> Result<String, ServerError> {
     // Data size
     let (size_bytes, remainder) = data.split_at(size_of::<u32>());
     let size = u32::from_be_bytes(size_bytes.try_into().unwrap());
@@ -30,15 +29,23 @@ pub fn parse_message_payload(data: &[u8]) -> Result<String, &'static str> {
 
         // If the checksums don't match, throw error. Otherwise parse the data into a string
         if remote_checksum != local_checksum {
-            return Err("Checksums do not match.");
+            return Err(ServerError::ChecksumError);
         }
 
         // Throw error if size described in message is not equal to the number of bytes of the body
         if size as usize > data_bytes.len() {
-            return Err("Size of body data does not match.");
+            return Err(ServerError::BodySizeError);
         }
 
-        body = str::from_utf8(data_bytes).unwrap();
+        // Check for errors when parsing raw bytes into a string
+        match str::from_utf8(data_bytes) {
+            Ok(data) => {
+                body = data;
+            }
+            Err(_) => {
+                return Err(ServerError::BytesToStringError)
+            }
+        }
     }
     Ok(body.to_string())
 }
@@ -63,12 +70,16 @@ pub fn build_message_body(body: Option<String>) -> Vec<u8> {
 }
 
 // Generic function for parsing byte array into a data type
-pub fn parse_message_data<'a, T>(raw_message: &[u8]) -> Result<T, &'static str> where T: DeserializeOwned {
+pub fn parse_message_data<'a, T>(raw_message: &[u8]) -> Result<T, ServerError> where T: DeserializeOwned {
     return match parse_message_payload(raw_message) {
         Ok(data_string) => {
-            // A little bit clumsy, but due to the Deserialize trait's lifetime requirements,
-            // we have to pass the data string back too.
-            Ok(serde_json::from_str(&data_string).unwrap())
+            // Make sure parsing string into a data type is successful. Throw error if not.
+            let parse_result = serde_json::from_str(&data_string);
+            if parse_result.is_err() {
+                Err(ServerError::DeserializeError)
+            } else {
+                Ok(parse_result.unwrap())
+            }
         }
         Err(e) => {
             Err(e)
