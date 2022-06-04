@@ -24,8 +24,8 @@ pub fn parse_server_message_header(raw_message: &[u8]) -> (StatusCode, MessageTy
 // Handles message sequence and message type.
 pub fn build_client_headers(next_in_sequence: u32, message_type: MessageType) -> Vec<u8> {
     let mut byte_vec = vec![];
-    byte_vec.extend_from_slice(&next_in_sequence.to_be_bytes());
-    byte_vec.extend_from_slice(&(message_type as u16).to_be_bytes());
+    byte_vec.extend_from_slice(&next_in_sequence.to_be_bytes()); // message id
+    byte_vec.extend_from_slice(&(message_type as u16).to_be_bytes()); // message type
     byte_vec
 }
 

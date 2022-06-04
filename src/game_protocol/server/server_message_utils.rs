@@ -31,8 +31,8 @@ pub fn parse_connect_request(_: &[u8]) -> ConnectRequest<NoAuth> {
 // Build the headers for server message: status code and message type.
 pub fn build_server_headers(status_code: StatusCode, message_type: MessageType) -> Vec<u8> {
     let mut byte_vec = vec![];
-    byte_vec.extend_from_slice(&(status_code as u16).to_be_bytes());
-    byte_vec.extend_from_slice(&(message_type as u16).to_be_bytes());
+    byte_vec.extend_from_slice(&(status_code as u16).to_be_bytes()); // status code
+    byte_vec.extend_from_slice(&(message_type as u16).to_be_bytes()); // message type
     byte_vec
 }
 

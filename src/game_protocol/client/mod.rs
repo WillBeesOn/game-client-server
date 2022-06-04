@@ -337,6 +337,12 @@ impl GameProtocolClient {
         let mut state_lock = state_clone.lock().unwrap();
         let socket = state_lock.socket.as_ref().unwrap().clone();
         let next_message_num = state_lock.next_message_num;
+
+        // Return early and don't disconnect if the protocol state isn't Idle.
+        if !matches!(state_lock.protocol_state, ProtocolState::Idle) {
+            return;
+        }
+
         state_lock.protocol_state = state_lock.protocol_state;
         state_lock.protocol_state = ProtocolState::ClosingConnection;
         drop(state_lock);
@@ -513,6 +519,8 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                                         // Collect the matching games and store them since these are the ones the client should only be able to create lobbies for and join.
                                         let mut matching_games = vec![];
                                         let supported_games = &state_lock.supported_games;
+
+                                        // Collected mutually supported games
                                         for server_game_id in res.games.iter() {
                                             if supported_games.contains_key(server_game_id) {
                                                 matching_games.push((

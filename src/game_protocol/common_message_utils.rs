@@ -60,7 +60,7 @@ pub fn build_message_body(body: Option<String>) -> Vec<u8> {
         if data_bytes.len() > u32::MAX as usize {
             return byte_vec;
         }
-        byte_vec.extend_from_slice(&(data_bytes.len() as u32).to_be_bytes());
+        byte_vec.extend_from_slice(&(data_bytes.len() as u32).to_be_bytes()); // body size in bytes
         byte_vec.extend_from_slice(&crc32fast::hash(&data_bytes).to_be_bytes()); // Create checksum
         byte_vec.extend_from_slice(&data_bytes);
     } else {
