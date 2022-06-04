@@ -133,9 +133,8 @@ impl GameProtocolServer {
                         // If size of data is more than 0, then this is a message we are receiving.
                         // If size is 0, then socket is closed, so formally shut it down.
                         if size > 0 {
-                            println!("Message received. Processing...");
                             let (message_id, message_type, remainder) = parse_client_message_header(&buffer);
-                            println!("id: {}, type: {:?}, data size: {}", message_id, message_type, size);
+                            println!("Request from client {}: {:?}", client_id, message_type);
 
                             // Set up variables pretty much each handler will need
                             let mut state_lock = state_clone.lock().unwrap();

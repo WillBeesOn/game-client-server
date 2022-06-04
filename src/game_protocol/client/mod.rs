@@ -459,7 +459,7 @@ fn listen(socket: Arc<TcpStream>, state: Arc<Mutex<GameProtocolClientState>>) {
                 // If size is 0, then socket is closed, so formally shut it down.
                 if size > 0 {
                     let (status_code, message_type, remainder) = parse_server_message_header(&buffer);
-                    println!("From server: {:?}, {:?}, {}, {}", status_code, message_type, remainder.len(), size);
+                    println!("Message from server: {:?}, {:?}", status_code, message_type);
 
                     // Lock state mutex and match the message type to handle the message appropriately
                     let mut state_lock = state.lock().unwrap();
