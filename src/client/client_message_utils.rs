@@ -5,7 +5,7 @@ use crate::shared_data::{CreateLobbyRequest, JoinLobbyRequest, StartGameRequest}
 
 /*
     Contains helpers for building client requests and parsing server responses.
-    A lot of these could probably be made to use generics, but currently don't have enough time
+    A lot of these could probably be made to use generics.
     to sort out a refactor. This all still works as intended.
     Functions should be self explanatory: build and parse message types.
  */

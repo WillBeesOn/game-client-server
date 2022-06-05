@@ -77,7 +77,7 @@ impl GameProtocolServer {
     // Register a game module by using generics. Generic must have a static lifetime and implement the GameModule trait.
     // That way we know that the game module will be compatible with protocol operations.
     pub fn register_game<T: 'static + GameModule>(&self) {
-        let game = Arc::new(T::new());
+        let game = Arc::new(T::new()); // Create a new instance of the module to use as a factory.
         let mut state_lock = self.state.lock().unwrap();
         state_lock.supported_games.insert(game.get_metadata().get_game_type_id(),  game);
     }

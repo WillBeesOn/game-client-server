@@ -7,7 +7,7 @@ use crate::shared_data::{ConnectRequest, ConnectResponse, Lobby, LobbyInfoRespon
 
 /*
     Full of helper functions to parse client requests and build server responses.
-    A lot of these could probably be made to use generics, but currently don't have enough time
+    A lot of these could probably be made to use generics.
     to sort out a refactor. This all still works as intended.
     Functions should be self explanatory: build and parse message types.
  */

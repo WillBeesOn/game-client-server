@@ -66,297 +66,6 @@ impl GameProtocolClient {
         }
     }
 
-    // Returns socket address client is connected to
-    pub fn get_socket_address(&self) -> String {
-        if let (Some(ip), Some(port)) = (&self.ip, &self.port) {
-            return format!("{}:{}", ip, port);
-        }
-        "".to_string()
-    }
-
-    // Get which protocol state the client is in
-    pub fn get_protocol_state(&self) -> ProtocolState {
-        self.state.lock().unwrap().protocol_state
-    }
-
-    // Get clone of supported games. Can't return a reference since data is behind a mutex.
-    pub fn get_supported_games(&self) -> Vec<(String, String)> {
-        self.state.lock().unwrap().matching_supported_games.clone()
-    }
-
-    // Get clone of lobbies the server has. Can't return a reference since data is behind a mutex.
-    pub fn get_lobby_list(&self) -> Vec<Lobby> {
-        self.state.lock().unwrap().lobbies.clone()
-    }
-
-    // Get clone of current lobby the client is in. Can't return a reference since data is behind a mutex.
-    pub fn get_current_lobby(&self) -> Option<Lobby> {
-        self.state.lock().unwrap().current_lobby.clone()
-    }
-
-    // Get clone of client's ID. Can't return a reference since data is behind a mutex.
-    pub fn get_client_id(&self) -> String {
-        self.state.lock().unwrap().client_id.clone()
-    }
-
-    // Get clone of game state of in-progress game. Can't return a reference since data is behind a mutex.
-    pub fn get_game_state(&self) -> Option<Box<dyn GameState>> {
-        let state_lock = self.state.lock().unwrap();
-        if let Some(game) = &state_lock.game_in_progress {
-            Some(game.get_game_state().clone())
-        } else {
-            None
-        }
-    }
-
-    // Get end condition data of the game.
-    pub fn get_game_end_result(&self) -> Option<(bool, Option<String>)> {
-        let state_lock = self.state.lock().unwrap();
-        if let Some(game) = &state_lock.game_in_progress {
-            Some(game.end_condition_met())
-        } else {
-            None
-        }
-    }
-
-    // Set a callback function to run when client receives a server message.
-    // Callback function has no arguments, must be thread safe, and a static lifetime
-    pub fn on_message_received_callback(&self, callback: impl Fn() + Send + Sync + 'static) {
-        let callback = Box::new(callback);
-        self.state.lock().unwrap().on_message_received = Some(callback);
-    }
-
-    // Register a game module by using generics. Generic must have a static lifetime and implement the GameModule trait.
-    // That way we know that the game module will be compatible with protocol operations.
-    pub fn register_game<T: 'static + GameModule>(&mut self) {
-        let game = Arc::new(T::new()); // Create a new instance of the module to use as a factory.
-
-        // Add factory object to supported games hash map, indexed by the game module ID
-        self.state.lock().unwrap().supported_games.insert(game.get_metadata().get_game_type_id(), game);
-    }
-
-    // Send message  to server to request lobby list.
-    pub fn request_lobby_list(&mut self) {
-        // Lock state object to get required message data and change protocol state.
-        let state_clone = self.state.clone();
-        let mut state_lock = state_clone.lock().unwrap();
-        let socket = state_lock.socket.as_ref().unwrap().clone();
-        let next_message_num = state_lock.next_message_num;
-        state_lock.previous_protocol_state = state_lock.protocol_state;
-        state_lock.protocol_state = ProtocolState::GettingLobbies;
-        drop(state_lock);
-
-        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        send_message(
-            build_client_headers(next_message_num, MessageType::LobbyListRequest),
-            self.state.clone()
-        );
-        if !self.state.lock().unwrap().is_listening_async {
-            listen(socket, self.state.clone());
-        }
-    }
-
-    // Send message to server to request list of server's supported games
-    pub fn request_supported_games(&mut self) {
-        // Lock state object to get required message data and change protocol state.
-        let state_clone = self.state.clone();
-        let mut state_lock = state_clone.lock().unwrap();
-        let socket = state_lock.socket.as_ref().unwrap().clone();
-        let next_message_num = state_lock.next_message_num;
-        state_lock.previous_protocol_state = state_lock.protocol_state;
-        state_lock.protocol_state = ProtocolState::GettingSupportedGames;
-        drop(state_lock);
-
-        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        send_message(
-            build_client_headers(next_message_num, MessageType::SupportedGamesRequest),
-            self.state.clone()
-        );
-        if !self.state.lock().unwrap().is_listening_async {
-            listen(socket, self.state.clone());
-        }
-    }
-
-    // Send message to server to request updated information for a lobby the client is a member of
-    pub fn refresh_current_lobby(&mut self) {
-        // Lock state object to get required message data and change protocol state.
-        let state_clone = self.state.clone();
-        let mut state_lock = state_clone.lock().unwrap();
-        let socket = state_lock.socket.as_ref().unwrap().clone();
-        let next_message_num = state_lock.next_message_num;
-        state_lock.previous_protocol_state = state_lock.protocol_state;
-        state_lock.protocol_state = ProtocolState::GettingLobbyInfo;
-        drop(state_lock);
-
-        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        send_message(
-            build_client_headers(next_message_num, MessageType::LobbyInfoRequest),
-            self.state.clone()
-        );
-        if !self.state.lock().unwrap().is_listening_async {
-            listen(socket, self.state.clone());
-        }
-    }
-
-    // Send message to server to request the server create a new lobby that hosts a particular game and move the client into the lobby.
-    pub fn create_lobby(&mut self, game_type_id: &str) {
-        // Lock state object to get required message data and change protocol state.
-        let state_clone = self.state.clone();
-        let mut state_lock = state_clone.lock().unwrap();
-        let socket = state_lock.socket.as_ref().unwrap().clone();
-        let next_message_num = state_lock.next_message_num;
-        state_lock.previous_protocol_state = state_lock.protocol_state;
-        state_lock.protocol_state = ProtocolState::CreatingLobby;
-        drop(state_lock);
-
-        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        send_message(
-            build_create_lobby_request(next_message_num, game_type_id.to_string()),
-            self.state.clone()
-        );
-        if !self.state.lock().unwrap().is_listening_async {
-            listen(socket, self.state.clone());
-        }
-    }
-
-    // Send message to server to request the server add the client to the requested lobby.
-    pub fn join_lobby(&mut self, lobby_id: &str) {
-        // Lock state object to get required message data and change protocol state.
-        let state_clone = self.state.clone();
-        let mut state_lock = state_clone.lock().unwrap();
-        let socket = state_lock.socket.as_ref().unwrap().clone();
-        let next_message_num = state_lock.next_message_num;
-        state_lock.previous_protocol_state = state_lock.protocol_state;
-        state_lock.protocol_state = ProtocolState::JoiningLobby;
-        drop(state_lock);
-
-        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        send_message(
-            build_join_lobby_request(next_message_num, lobby_id.to_string()),
-            self.state.clone()
-        );
-        if !self.state.lock().unwrap().is_listening_async {
-            listen(socket, self.state.clone());
-        }
-    }
-
-    // Send request to server to have server remove client from the lobby they are in.
-    pub fn leave_lobby(&mut self) {
-        // Lock state object to get required message data and change protocol state.
-        let state_clone = self.state.clone();
-        let mut state_lock = state_clone.lock().unwrap();
-        let socket = state_lock.socket.as_ref().unwrap().clone();
-        let next_message_num = state_lock.next_message_num;
-        state_lock.previous_protocol_state = state_lock.protocol_state;
-        state_lock.protocol_state = ProtocolState::LeavingLobby;
-        drop(state_lock);
-
-        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        send_message(
-            build_client_headers(next_message_num, MessageType::LeaveLobbyRequest),
-            self.state.clone()
-        );
-        if !self.state.lock().unwrap().is_listening_async {
-            listen(socket, self.state.clone());
-        }
-    }
-
-    // Send request to start the game that a lobby hosts. Only send if client is inside a lobby.
-    pub fn start_game(&mut self) {
-        // Lock state object to get required message data and change protocol state.
-        let state_clone = self.state.clone();
-        let mut state_lock = state_clone.lock().unwrap();
-        let socket = state_lock.socket.as_ref().unwrap().clone();
-        let next_message_num = state_lock.next_message_num;
-        state_lock.previous_protocol_state = state_lock.protocol_state;
-        state_lock.protocol_state = ProtocolState::CreatingGameSession;
-
-        // Check if client is in a lobby first.
-        let mut lobby_id = "".to_string();
-        if let Some(lobby) = &state_lock.current_lobby {
-            lobby_id = lobby.id.clone();
-        }
-        drop(state_lock);
-
-        if lobby_id.is_empty() {
-            return;
-        }
-
-        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        send_message(
-            build_start_game_request(next_message_num, lobby_id),
-            self.state.clone()
-        );
-        if !self.state.lock().unwrap().is_listening_async {
-            listen(socket, self.state.clone());
-        }
-    }
-
-    // Send request to make a move in the game state on the server.
-    pub fn make_move(&mut self, game_move: &dyn GameMove) {
-        // Lock state object to get required message data and change protocol state.
-        let state_clone = self.state.clone();
-        let state_lock = state_clone.lock().unwrap();
-        let socket = state_lock.socket.as_ref().unwrap().clone();
-        let next_message_num = state_lock.next_message_num;
-        drop(state_lock);
-
-        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        send_message(
-            build_move_request(next_message_num, game_move),
-            self.state.clone()
-        );
-        if !self.state.lock().unwrap().is_listening_async {
-            listen(socket, self.state.clone());
-        }
-    }
-
-    // Send request to return to the lobby from a game session
-    pub fn return_to_lobby(&mut self) {
-        // Lock state object to get required message data and change protocol state.
-        let state_clone = self.state.clone();
-        let state_lock = state_clone.lock().unwrap();
-        let socket = state_lock.socket.as_ref().unwrap().clone();
-        let next_message_num = state_lock.next_message_num;
-        drop(state_lock);
-
-        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        send_message(
-            build_client_headers(next_message_num, MessageType::ReturnToLobbyRequest),
-            self.state.clone()
-        );
-        if !self.state.lock().unwrap().is_listening_async {
-            listen(socket, self.state.clone());
-        }
-    }
-
-    // Send request to terminate the session between client and server
-    pub fn disconnect(&mut self) {
-        // Lock state object to get required message data and change protocol state.
-        let state_clone = self.state.clone();
-        let mut state_lock = state_clone.lock().unwrap();
-        let socket = state_lock.socket.as_ref().unwrap().clone();
-        let next_message_num = state_lock.next_message_num;
-
-        // Return early and don't disconnect if the protocol state isn't Idle.
-        if !matches!(state_lock.protocol_state, ProtocolState::Idle) {
-            return;
-        }
-
-        state_lock.protocol_state = state_lock.protocol_state;
-        state_lock.protocol_state = ProtocolState::ClosingConnection;
-        drop(state_lock);
-
-        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
-        send_message(
-            build_client_headers(next_message_num, MessageType::DisconnectRequest),
-            self.state.clone()
-        );
-        if !self.state.lock().unwrap().is_listening_async {
-            listen(socket, self.state.clone());
-        }
-    }
-
     // Send request to establish a session between a server and client
     pub fn connect(&mut self, ip: &String, port: &String) {
         // Return if socket is Some (has a value, already connected).
@@ -424,6 +133,297 @@ impl GameProtocolClient {
     // Stop listening async. Set the boolean so in async_listen it knows to break out of the loop.
     pub fn stop_async_listen(&self) {
         self.state.lock().unwrap().is_listening_async = false;
+    }
+
+    // Send request to terminate the session between client and server
+    pub fn disconnect(&self) {
+        // Lock state object to get required message data and change protocol state.
+        let state_clone = self.state.clone();
+        let mut state_lock = state_clone.lock().unwrap();
+        let socket = state_lock.socket.as_ref().unwrap().clone();
+        let next_message_num = state_lock.next_message_num;
+
+        // Return early and don't disconnect if the protocol state isn't Idle.
+        if !matches!(state_lock.protocol_state, ProtocolState::Idle) {
+            return;
+        }
+
+        state_lock.protocol_state = state_lock.protocol_state;
+        state_lock.protocol_state = ProtocolState::ClosingConnection;
+        drop(state_lock);
+
+        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
+        send_message(
+            build_client_headers(next_message_num, MessageType::DisconnectRequest),
+            self.state.clone()
+        );
+        if !self.state.lock().unwrap().is_listening_async {
+            listen(socket, self.state.clone());
+        }
+    }
+
+    // Returns socket address client is connected to
+    pub fn get_socket_address(&self) -> String {
+        if let (Some(ip), Some(port)) = (&self.ip, &self.port) {
+            return format!("{}:{}", ip, port);
+        }
+        "".to_string()
+    }
+
+    // Get which protocol state the client is in
+    pub fn get_protocol_state(&self) -> ProtocolState {
+        self.state.lock().unwrap().protocol_state
+    }
+
+    // Get clone of supported games. Can't return a reference since data is behind a mutex.
+    pub fn get_supported_games(&self) -> Vec<(String, String)> {
+        self.state.lock().unwrap().matching_supported_games.clone()
+    }
+
+    // Get clone of lobbies the server has. Can't return a reference since data is behind a mutex.
+    pub fn get_lobby_list(&self) -> Vec<Lobby> {
+        self.state.lock().unwrap().lobbies.clone()
+    }
+
+    // Get clone of current lobby the client is in. Can't return a reference since data is behind a mutex.
+    pub fn get_current_lobby(&self) -> Option<Lobby> {
+        self.state.lock().unwrap().current_lobby.clone()
+    }
+
+    // Get clone of client's ID. Can't return a reference since data is behind a mutex.
+    pub fn get_client_id(&self) -> String {
+        self.state.lock().unwrap().client_id.clone()
+    }
+
+    // Get clone of game state of in-progress game. Can't return a reference since data is behind a mutex.
+    pub fn get_game_state(&self) -> Option<Box<dyn GameState>> {
+        let state_lock = self.state.lock().unwrap();
+        if let Some(game) = &state_lock.game_in_progress {
+            Some(game.get_game_state().clone())
+        } else {
+            None
+        }
+    }
+
+    // Get end condition data of the game.
+    pub fn get_game_end_result(&self) -> Option<(bool, Option<String>)> {
+        let state_lock = self.state.lock().unwrap();
+        if let Some(game) = &state_lock.game_in_progress {
+            Some(game.end_condition_met())
+        } else {
+            None
+        }
+    }
+
+    // Set a callback function to run when client receives a server message.
+    // Callback function has no arguments, must be thread safe, and a static lifetime
+    pub fn on_message_received_callback(&self, callback: impl Fn() + Send + Sync + 'static) {
+        let callback = Box::new(callback);
+        self.state.lock().unwrap().on_message_received = Some(callback);
+    }
+
+    // Register a game module by using generics. Generic must have a static lifetime and implement the GameModule trait.
+    // That way we know that the game module will be compatible with protocol operations.
+    pub fn register_game<T: 'static + GameModule>(&self) {
+        let game = Arc::new(T::new()); // Create a new instance of the module to use as a factory.
+
+        // Add factory object to supported games hash map, indexed by the game module ID
+        self.state.lock().unwrap().supported_games.insert(game.get_metadata().get_game_type_id(), game);
+    }
+
+    // Send message  to server to request lobby list.
+    pub fn request_lobby_list(&self) {
+        // Lock state object to get required message data and change protocol state.
+        let state_clone = self.state.clone();
+        let mut state_lock = state_clone.lock().unwrap();
+        let socket = state_lock.socket.as_ref().unwrap().clone();
+        let next_message_num = state_lock.next_message_num;
+        state_lock.previous_protocol_state = state_lock.protocol_state;
+        state_lock.protocol_state = ProtocolState::GettingLobbies;
+        drop(state_lock);
+
+        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
+        send_message(
+            build_client_headers(next_message_num, MessageType::LobbyListRequest),
+            self.state.clone()
+        );
+        if !self.state.lock().unwrap().is_listening_async {
+            listen(socket, self.state.clone());
+        }
+    }
+
+    // Send message to server to request list of server's supported games
+    pub fn request_supported_games(&self) {
+        // Lock state object to get required message data and change protocol state.
+        let state_clone = self.state.clone();
+        let mut state_lock = state_clone.lock().unwrap();
+        let socket = state_lock.socket.as_ref().unwrap().clone();
+        let next_message_num = state_lock.next_message_num;
+        state_lock.previous_protocol_state = state_lock.protocol_state;
+        state_lock.protocol_state = ProtocolState::GettingSupportedGames;
+        drop(state_lock);
+
+        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
+        send_message(
+            build_client_headers(next_message_num, MessageType::SupportedGamesRequest),
+            self.state.clone()
+        );
+        if !self.state.lock().unwrap().is_listening_async {
+            listen(socket, self.state.clone());
+        }
+    }
+
+    // Send message to server to request updated information for a lobby the client is a member of
+    pub fn refresh_current_lobby(&self) {
+        // Lock state object to get required message data and change protocol state.
+        let state_clone = self.state.clone();
+        let mut state_lock = state_clone.lock().unwrap();
+        let socket = state_lock.socket.as_ref().unwrap().clone();
+        let next_message_num = state_lock.next_message_num;
+        state_lock.previous_protocol_state = state_lock.protocol_state;
+        state_lock.protocol_state = ProtocolState::GettingLobbyInfo;
+        drop(state_lock);
+
+        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
+        send_message(
+            build_client_headers(next_message_num, MessageType::LobbyInfoRequest),
+            self.state.clone()
+        );
+        if !self.state.lock().unwrap().is_listening_async {
+            listen(socket, self.state.clone());
+        }
+    }
+
+    // Send message to server to request the server create a new lobby that hosts a particular game and move the client into the lobby.
+    pub fn create_lobby(&self, game_type_id: &str) {
+        // Lock state object to get required message data and change protocol state.
+        let state_clone = self.state.clone();
+        let mut state_lock = state_clone.lock().unwrap();
+        let socket = state_lock.socket.as_ref().unwrap().clone();
+        let next_message_num = state_lock.next_message_num;
+        state_lock.previous_protocol_state = state_lock.protocol_state;
+        state_lock.protocol_state = ProtocolState::CreatingLobby;
+        drop(state_lock);
+
+        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
+        send_message(
+            build_create_lobby_request(next_message_num, game_type_id.to_string()),
+            self.state.clone()
+        );
+        if !self.state.lock().unwrap().is_listening_async {
+            listen(socket, self.state.clone());
+        }
+    }
+
+    // Send message to server to request the server add the client to the requested lobby.
+    pub fn join_lobby(&self, lobby_id: &str) {
+        // Lock state object to get required message data and change protocol state.
+        let state_clone = self.state.clone();
+        let mut state_lock = state_clone.lock().unwrap();
+        let socket = state_lock.socket.as_ref().unwrap().clone();
+        let next_message_num = state_lock.next_message_num;
+        state_lock.previous_protocol_state = state_lock.protocol_state;
+        state_lock.protocol_state = ProtocolState::JoiningLobby;
+        drop(state_lock);
+
+        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
+        send_message(
+            build_join_lobby_request(next_message_num, lobby_id.to_string()),
+            self.state.clone()
+        );
+        if !self.state.lock().unwrap().is_listening_async {
+            listen(socket, self.state.clone());
+        }
+    }
+
+    // Send request to server to have server remove client from the lobby they are in.
+    pub fn leave_lobby(&self) {
+        // Lock state object to get required message data and change protocol state.
+        let state_clone = self.state.clone();
+        let mut state_lock = state_clone.lock().unwrap();
+        let socket = state_lock.socket.as_ref().unwrap().clone();
+        let next_message_num = state_lock.next_message_num;
+        state_lock.previous_protocol_state = state_lock.protocol_state;
+        state_lock.protocol_state = ProtocolState::LeavingLobby;
+        drop(state_lock);
+
+        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
+        send_message(
+            build_client_headers(next_message_num, MessageType::LeaveLobbyRequest),
+            self.state.clone()
+        );
+        if !self.state.lock().unwrap().is_listening_async {
+            listen(socket, self.state.clone());
+        }
+    }
+
+    // Send request to start the game that a lobby hosts. Only send if client is inside a lobby.
+    pub fn start_game(&self) {
+        // Lock state object to get required message data and change protocol state.
+        let state_clone = self.state.clone();
+        let mut state_lock = state_clone.lock().unwrap();
+        let socket = state_lock.socket.as_ref().unwrap().clone();
+        let next_message_num = state_lock.next_message_num;
+        state_lock.previous_protocol_state = state_lock.protocol_state;
+        state_lock.protocol_state = ProtocolState::CreatingGameSession;
+
+        // Check if client is in a lobby first.
+        let mut lobby_id = "".to_string();
+        if let Some(lobby) = &state_lock.current_lobby {
+            lobby_id = lobby.id.clone();
+        }
+        drop(state_lock);
+
+        if lobby_id.is_empty() {
+            return;
+        }
+
+        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
+        send_message(
+            build_start_game_request(next_message_num, lobby_id),
+            self.state.clone()
+        );
+        if !self.state.lock().unwrap().is_listening_async {
+            listen(socket, self.state.clone());
+        }
+    }
+
+    // Send request to make a move in the game state on the server.
+    pub fn make_move(&self, game_move: &dyn GameMove) {
+        // Lock state object to get required message data and change protocol state.
+        let state_clone = self.state.clone();
+        let state_lock = state_clone.lock().unwrap();
+        let socket = state_lock.socket.as_ref().unwrap().clone();
+        let next_message_num = state_lock.next_message_num;
+        drop(state_lock);
+
+        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
+        send_message(
+            build_move_request(next_message_num, game_move),
+            self.state.clone()
+        );
+        if !self.state.lock().unwrap().is_listening_async {
+            listen(socket, self.state.clone());
+        }
+    }
+
+    // Send request to return to the lobby from a game session
+    pub fn return_to_lobby(&self) {
+        // Lock state object to get required message data and change protocol state.
+        let state_clone = self.state.clone();
+        let state_lock = state_clone.lock().unwrap();
+        let socket = state_lock.socket.as_ref().unwrap().clone();
+        let next_message_num = state_lock.next_message_num;
+        drop(state_lock);
+
+        // Send message. Synchronously listen if the client isn't asynchronously listening for server messages.
+        send_message(
+            build_client_headers(next_message_num, MessageType::ReturnToLobbyRequest),
+            self.state.clone()
+        );
+        if !self.state.lock().unwrap().is_listening_async {
+            listen(socket, self.state.clone());
+        }
     }
 }
 

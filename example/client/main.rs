@@ -32,7 +32,7 @@ struct GameClient {
 // Implement constructor for GameClient
 impl GameClient {
     fn new() -> Self {
-        let mut protocol = GameProtocolClient::new();
+        let protocol = GameProtocolClient::new();
         protocol.register_game::<TicTacToe>();
         Self {
             protocol_handler: protocol,
