@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-game_protocol = { path = "../game_protocol" }
+game_protocol = { path = "../../src" }
 tic_tac_toe = { path = "../tic_tac_toe" }
 
 # GUI library
@@ -19,4 +19,4 @@ tracing-subscriber = "0.3"
 
 [[bin]]
 name="game_client_gui"
-path="main.rs"
+path= "main.rs"

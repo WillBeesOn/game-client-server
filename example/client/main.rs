@@ -1,9 +1,8 @@
 #![windows_subsystem = "windows"]
-#![windows_subsystem = "windows"]
 
 use eframe::egui;
 use egui::Button;
-use game_protocol::client::GameProtocolClient;
+use game_protocol::GameProtocolClient;
 use game_protocol::enums::ProtocolState;
 use tic_tac_toe::{CellElement, TicTacToe, TicTacToeMove, TicTacToeState};
 

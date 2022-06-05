@@ -1,4 +1,4 @@
-use game_protocol::server::GameProtocolServer;
+use game_protocol::GameProtocolServer;
 use tic_tac_toe::TicTacToe;
 
 /*

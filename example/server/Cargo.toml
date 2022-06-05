@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-game_protocol = { path = "../game_protocol" }
+game_protocol = { path = "../../src" }
 tic_tac_toe = { path = "../tic_tac_toe" }
 
 [[bin]]
 name="game_server"
-path="main.rs"
+path= "main.rs"
