@@ -6,6 +6,8 @@ Also provides traits and data types for creating your own game module for the se
 
 See an exaple client, server, and game module implementation [here](https://github.com/WillBeesOn/game-client-server/tree/main/example). The server is quite simple but the client is a bit more complicated with a GUI implemented with the `egui` crate.
 
+See a brief demonstration video [here](https://drive.google.com/file/d/1u1BbzQd7WXb3bmKpqQ9Knk6EdLbqfXd7/view?usp=sharing) of the example program.
+
 ## [`game_protocol::GameProtocolClient`](https://github.com/WillBeesOn/game-client-server/tree/main/src/client/mod.rs)
 
 Use to create a client program. 
