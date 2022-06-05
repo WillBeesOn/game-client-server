@@ -68,7 +68,7 @@ Use to create a server program. Getting a server started is much more straightfo
 
 `start()` - Bind server to a TCPListener on the supplied socket address and listens for client connections.
 
-## [`game_protocol:ProtocolState`](https://github.com/WillBeesOn/game-client-server/tree/main/src/enums.rs)
+## [`game_protocol:ProtocolState`](https://github.com/WillBeesOn/game-client-server/blob/main/src/enums.rs#L58)
 An enum used to represent the network protocol state the client is in.
 
 ## [`game_protocol::game_module`](https://github.com/WillBeesOn/game-client-server/tree/main/src/game_module/mod.rs)
