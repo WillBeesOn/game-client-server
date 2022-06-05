@@ -1,8 +1,9 @@
 pub use client::GameProtocolClient;
 pub use server::GameProtocolServer;
+pub use enums::ProtocolState;
 pub mod game_module;
-pub mod enums;
 
+mod enums;
 mod client;
 mod server;
 mod common_message_utils;

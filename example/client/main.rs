@@ -3,7 +3,7 @@
 use eframe::egui;
 use egui::Button;
 use game_protocol::GameProtocolClient;
-use game_protocol::enums::ProtocolState;
+use game_protocol::ProtocolState;
 use tic_tac_toe::{CellElement, TicTacToe, TicTacToeMove, TicTacToeState};
 
 /*

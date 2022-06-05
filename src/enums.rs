@@ -34,10 +34,10 @@ pub enum MessageType {
 pub enum StatusCode {
     UnexpectedError,
     Success,
-    DataParseError, // TODO problem with getting data from byte vec?
+    DataParseError,
     DataIntegrityError,
     MessageSequenceError,
-    MalformedBody, // TODO catch errors when deserializing
+    MalformedBody,
     UnsupportedRequestType,
     UnsupportedAuthMethod,
     UnsupportedGame,
